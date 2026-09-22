@@ -1,0 +1,28 @@
+services:
+  # api:
+  #   build: ./apps/api
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     NODE_ENV: production
+  #     DB_HOST: mysql
+  #     DB_PORT: 3306
+  #     DB_USER: app
+  #     DB_PASSWORD: ${DB_PASSWORD}
+  #     DB_NAME: myapp
+  #   depends_on:
+  #     mysql:
+  #       condition: service_healthy
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: smlms
+    ports:
+      - "3306:3306"
+    volumes:
+      - smlms_db:/var/lib/mysql
+
+volumes:
+  smlms_db:
