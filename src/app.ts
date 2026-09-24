@@ -1,12 +1,14 @@
-import express, { type Express, type Request, type Response } from "express";
-import { router as locker } from "./routes/locker.route.ts";
-import { initDatabase } from "./configs/database.ts";
+import express, { type Express } from "express";
+import type { LockerController } from "./controllers/locker.controller.ts";
+import { errorHandler } from "./middlewares/error-handler.ts";
+import { createLockerRouter } from "./routes/locker.route.ts";
 
-async function main() {
-  await initDatabase();
-  const app: Express = express();
-  app.use("/locker", locker);
-  app.listen(3000);
-}
+export const createApp = (controller?: LockerController): Express => {
+  const app = express();
 
-main().catch(console.error);
+  app.use(express.json());
+  app.use("/lockers", createLockerRouter(controller));
+  app.use(errorHandler);
+
+  return app;
+};

@@ -5,20 +5,25 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "node --env-file=.env --import=tsx --watch src/app.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node --env-file=.env --import=tsx --watch src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "author": "cylimyuan@gmail.com",
   "license": "ISC",
   "dependencies": {
     "express": "^5.2.1",
     "mysql2": "^3.24.4",
-    "sequelize": "^6.37.8"
+    "sequelize": "^6.37.8",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.2",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.0",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }

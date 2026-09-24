@@ -18,11 +18,11 @@ services:
     image: mysql:8.4
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: smlms
+      MYSQL_DATABASE: splms
     ports:
       - "3306:3306"
     volumes:
-      - smlms_db:/var/lib/mysql
+      - splms_db:/var/lib/mysql
 
 volumes:
-  smlms_db:
+  splms_db:

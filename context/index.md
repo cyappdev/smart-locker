@@ -17,3 +17,19 @@
 ```
 
 ```
+
+## Backend APIs
+
+[API draft](./api.md)
+
+## Data Model
+
+[High-level data model for Levels 1–4](./data-model.md)
+
+## Out of scope / Limitation
+
+- Authentication
+  - There will be no authorize checking for Admin and Delivery Agent
+- Smart locker callback
+  - The status of the IOT locker is mocked
+- Current package details and pickup code are stored on the locker model; package history is not retained.
