@@ -17,10 +17,21 @@ export interface LockerRepositoryPort {
     pickupCode: string,
     occupiedAt: Date,
   ): Promise<Locker>;
-  retrievePackage(
+  retrievePackage<T>(
     lockerIdentifier: string,
     pickupCode: string,
-  ): Promise<string | null>;
+    decide: (assignment: RetrievalAssignment) => RetrievalDecision<T>,
+  ): Promise<T | null>;
+}
+
+export interface RetrievalAssignment {
+  packageIdentifier: string;
+  lastOccupiedAt: Date | null;
+}
+
+export interface RetrievalDecision<T> {
+  result: T;
+  release: boolean;
 }
 
 export class LockerRepository implements LockerRepositoryPort {
@@ -76,10 +87,18 @@ export class LockerRepository implements LockerRepositoryPort {
       packageIdentifier,
       pickupCode,
       lastOccupiedAt: occupiedAt,
+    }, {
+      where: {
+        status: "available",
+      },
     });
   }
 
-  retrievePackage(lockerIdentifier: string, pickupCode: string) {
+  retrievePackage<T>(
+    lockerIdentifier: string,
+    pickupCode: string,
+    decide: (assignment: RetrievalAssignment) => RetrievalDecision<T>,
+  ): Promise<T | null> {
     return sequelize.transaction(async (transaction) => {
       const locker = await Locker.findOne({
         where: {
@@ -94,18 +113,24 @@ export class LockerRepository implements LockerRepositoryPort {
 
       if (!locker?.packageIdentifier) return null;
 
-      const packageIdentifier = locker.packageIdentifier;
-      await locker.update(
-        {
-          status: "available",
-          packageIdentifier: null,
-          pickupCode: null,
-          lastOccupiedAt: null,
-        },
-        { transaction },
-      );
+      const decision = decide({
+        packageIdentifier: locker.packageIdentifier,
+        lastOccupiedAt: locker.lastOccupiedAt,
+      });
 
-      return packageIdentifier;
+      if (decision.release) {
+        await locker.update(
+          {
+            status: "available",
+            packageIdentifier: null,
+            pickupCode: null,
+            lastOccupiedAt: null,
+          },
+          { transaction },
+        );
+      }
+
+      return decision.result;
     });
   }
 }

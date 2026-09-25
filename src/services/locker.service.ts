@@ -13,6 +13,10 @@ import type {
 } from "../schemas/locker.schema.ts";
 import type { SizeCategory } from "../types/size-category.ts";
 import type { LockerStatus } from "../types/locker-status.ts";
+import {
+  TieredStorageFeePolicy,
+  type StorageFeePolicy,
+} from "./storage-fee-policy.ts";
 
 const ELIGIBLE_LOCKER_SIZES: Record<SizeCategory, readonly SizeCategory[]> = {
   small: ["small", "medium", "large"],
@@ -21,6 +25,14 @@ const ELIGIBLE_LOCKER_SIZES: Record<SizeCategory, readonly SizeCategory[]> = {
 };
 
 const PICKUP_CODE_ATTEMPTS = 5;
+
+export interface RetrievePackageResult {
+  status: "retrieved" | "charges_required";
+  packageIdentifier: string;
+  occupiedAt: string;
+  calculatedAt: string;
+  chargesInCents: number;
+}
 
 export interface LockerServicePort {
   createLocker(
@@ -32,7 +44,8 @@ export interface LockerServicePort {
       identifier: string;
       size: SizeCategory;
       status: LockerStatus;
-      packageIdentifier: string;
+      packageIdentifier: string | null;
+      pickupCode: string | null;
     }>;
     pagination: {
       page: number;
@@ -48,23 +61,26 @@ export interface LockerServicePort {
     pickupCode: string;
     status: "occupied";
   }>;
-  retrievePackage(input: RetrievePackageInput): Promise<{
-    success: true;
-    packageIdentifier: string;
-  }>;
+  retrievePackage(input: RetrievePackageInput): Promise<RetrievePackageResult>;
 }
 
 export class LockerService implements LockerServicePort {
   private readonly repository: LockerRepositoryPort;
   private readonly generatePickupCode: () => string;
+  private readonly now: () => Date;
+  private readonly storageFeePolicy: StorageFeePolicy;
 
   constructor(
     repository: LockerRepositoryPort = lockerRepository,
     generatePickupCode: () => string = () =>
       randomInt(0, 1_000_000).toString().padStart(6, "0"),
+    now: () => Date = () => new Date(),
+    storageFeePolicy: StorageFeePolicy = new TieredStorageFeePolicy(),
   ) {
     this.repository = repository;
     this.generatePickupCode = generatePickupCode;
+    this.now = now;
+    this.storageFeePolicy = storageFeePolicy;
   }
 
   createLocker(input: CreateLockerInput) {
@@ -74,19 +90,15 @@ export class LockerService implements LockerServicePort {
   async listLockers(input: ListLockersInput) {
     const { rows, count } = await this.repository.list(input);
 
-    // as any for testing pickup code
     return {
-      data: rows.map(
-        ({ id, identifier, size, status, pickupCode, packageIdentifier }) =>
-          ({
-            id,
-            identifier,
-            size,
-            status,
-            pickupCode,
-            packageIdentifier,
-          }) as any,
-      ),
+      data: rows.map(({ id, identifier, size, status, pickupCode, packageIdentifier }) => ({
+        id,
+        identifier,
+        size,
+        status,
+        pickupCode,
+        packageIdentifier,
+      })),
       pagination: {
         page: input.page,
         limit: input.limit,
@@ -136,12 +148,31 @@ export class LockerService implements LockerServicePort {
   }
 
   async retrievePackage(input: RetrievePackageInput) {
-    const packageIdentifier = await this.repository.retrievePackage(
+    const result = await this.repository.retrievePackage(
       input.lockerIdentifier,
       input.pickupCode,
+      ({ packageIdentifier, lastOccupiedAt }) => {
+        const calculatedAt = this.now();
+        if (!(lastOccupiedAt instanceof Date)) {
+          throw new Error("Invalid storage timestamp.");
+        }
+        const chargesInCents = this.storageFeePolicy.calculate(lastOccupiedAt, calculatedAt);
+        const release = chargesInCents === 0 || input.confirmCharges === true;
+
+        return {
+          release,
+          result: {
+            status: release ? "retrieved" as const : "charges_required" as const,
+            packageIdentifier,
+            occupiedAt: lastOccupiedAt.toISOString(),
+            calculatedAt: calculatedAt.toISOString(),
+            chargesInCents,
+          },
+        };
+      },
     );
 
-    if (!packageIdentifier) {
+    if (!result) {
       throw new AppError(
         404,
         "PACKAGE_NOT_FOUND",
@@ -149,7 +180,7 @@ export class LockerService implements LockerServicePort {
       );
     }
 
-    return { success: true as const, packageIdentifier };
+    return result;
   }
 }
 

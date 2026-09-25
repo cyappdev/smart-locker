@@ -12,12 +12,15 @@
   "author": "cylimyuan@gmail.com",
   "license": "ISC",
   "dependencies": {
+    "cors": "^2.8.6",
     "express": "^5.2.1",
     "mysql2": "^3.24.4",
     "sequelize": "^6.37.8",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@testcontainers/mysql": "^12.1.0",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.2",
     "@types/supertest": "^7.2.1",

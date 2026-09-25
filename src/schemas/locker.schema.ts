@@ -46,6 +46,7 @@ export const retrievePackageSchema = z
     pickupCode: z
       .string()
       .regex(/^\d{6}$/, "Pickup code must contain exactly 6 digits."),
+    confirmCharges: z.boolean().optional(),
   })
   .strict();
 
