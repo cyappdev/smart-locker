@@ -1,26 +1,28 @@
 services:
-  # api:
-  #   build: ./apps/api
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     NODE_ENV: production
-  #     DB_HOST: mysql
-  #     DB_PORT: 3306
-  #     DB_USER: app
-  #     DB_PASSWORD: ${DB_PASSWORD}
-  #     DB_NAME: myapp
-  #   depends_on:
-  #     mysql:
-  #       condition: service_healthy
-
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql
+  demo-client:
+    build: ./examples/demo-client
+    ports:
+      - "3001:80"
+    depends_on:
+      - api
   mysql:
     image: mysql:8.4
+    ports:
+      - "3002:3306"
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: splms
-    ports:
-      - "3300:3306"
     volumes:
       - splms_db:/var/lib/mysql
 

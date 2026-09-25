@@ -4,11 +4,11 @@ This repository is a Smart Package Locker Management System coding challenge. St
 
 ## Project references
 
-- [Challenge requirements](context/requirement.md): the requested behavior and four levels of scope. Level 4, concurrent storage, is optional.
-- [API draft](context/api.md): request, response, validation, and storage charge decisions where the challenge leaves room for interpretation. The running app mounts locker routes at `/api/lockers`.
-- [Context index](context/index.md): architecture, data model, and stated limitations.
+- [Challenge requirements](docs/requirement.md): the requested behavior and four levels of scope. Level 4, concurrent storage, is optional.
+- [API reference](docs/api.md): request and response contracts, validation, and storage charge behavior. The running app mounts locker routes at `/api/lockers`.
+- [Documentation index](docs/index.md): architecture, data model, and stated limitations.
 
-If a proposed change conflicts with these documents, check the challenge requirement first and make the chosen behavior explicit in the API draft and tests.
+If a proposed change conflicts with these documents, check the challenge requirement first and make the chosen behavior explicit in the API reference and tests.
 
 ## Behavior to preserve
 
@@ -18,7 +18,7 @@ Keep business rules out of controllers and SQL out of services. Add a new abstra
 - Charge calculation uses completed 24-hour periods from `lastOccupiedAt`. Zero-charge retrieval completes immediately. A positive charge requires `confirmCharges: true`; a preview leaves the assignment unchanged.
 - Retrieval locks the matching occupied locker within a transaction. Calculate the response from the original assignment, then clear it only for a completed retrieval. Invalid timestamps or failed updates must leave the assignment occupied.
 - Hardware opening and payment are outside this implementation. The list endpoint currently exposes package identifiers and pickup codes for debugging; treat that as a known limitation, not a security model.
-- Do not describe optional Level 4 concurrent storage as complete unless the implementation and concurrent MySQL tests establish it.
+- Storage allocation must lock and recheck the selected locker before assigning it. If another request claims it first, search again for the smallest suitable available locker. Preserve the concurrent MySQL tests that verify one assignment per locker.
 
 ## Validation and submission
 

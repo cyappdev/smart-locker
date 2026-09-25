@@ -11,7 +11,7 @@ import {
     TablePagination,
     TableRow,
 } from "@mui/material";
-import { type ListLockerResponse } from "../../../api/locker/listLocker";
+import { type ListLockerResponse, type Locker } from "../../../api/locker/listLocker";
 
 interface LockerListingProps {
     result?: ListLockerResponse;
@@ -22,24 +22,30 @@ interface LockerListingProps {
     onRetry: () => void;
     onPageChange: (page: number) => void;
     onRowsPerPageChange: (limit: number) => void;
+    onRowClick?: (locker: Locker) => void;
 }
 
 export const LockerListing = ({
-    result, loading, error, page, rowsPerPage, onRetry, onPageChange, onRowsPerPageChange,
+    result, loading, error, page, rowsPerPage, onRetry, onPageChange, onRowsPerPageChange, onRowClick,
 }: LockerListingProps) => {
+
+
+
     return (
-        <Paper>
+        <Paper sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             {loading && <LinearProgress />}
             {error && (
                 <Alert
                     severity="error"
-                    action={<Button color="inherit" onClick={onRetry}>Retry</Button>}
+                    action={<Button size="small" color="inherit" onClick={onRetry}>
+                        Retry
+                    </Button>}
                 >
                     Unable to load lockers. Please try again.
                 </Alert>
             )}
-            <TableContainer>
-                <Table aria-busy={loading}>
+            <TableContainer sx={{ flex: 1, minHeight: 0 }}>
+                <Table stickyHeader aria-busy={loading} size='small'>
                     <TableHead>
                         <TableRow>
                             <TableCell>Identifier</TableCell>
@@ -57,8 +63,17 @@ export const LockerListing = ({
                                 </TableCell>
                             </TableRow>
                         ) : result?.data.length ? result.data.map((locker) => (
-                            <TableRow key={locker.id} hover>
-                                <TableCell component="th" scope="row">{locker.identifier}</TableCell>
+                            <TableRow key={locker.id} hover onClick={(e) => {
+                                const selectedText = window.getSelection()?.toString() ?? '';
+                                if (selectedText.length > 0) {
+                                    return;
+                                }
+                                e.preventDefault();
+                                onRowClick?.(locker)
+                            }} sx={{ cursor: onRowClick ? "pointer" : "default" }}>
+                                <TableCell component="th" scope="row">
+                                    {locker.identifier}
+                                </TableCell>
                                 <TableCell>{locker.size}</TableCell>
                                 <TableCell>{locker.status}</TableCell>
                                 <TableCell>{locker.packageIdentifier ?? "—"}</TableCell>

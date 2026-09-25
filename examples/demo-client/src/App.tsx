@@ -10,7 +10,7 @@ function AppNavigation() {
 
   return (
 
-    <AppBar position="sticky">
+    <AppBar position="sticky" color="default">
       <Container maxWidth="lg">
         <Toolbar disableGutters>
           <Stack direction="row" spacing={3}>
@@ -18,22 +18,19 @@ function AppNavigation() {
               Smart Locker
             </Typography>
             <ButtonGroup
-              component="nav"
-              color="inherit"
               disableElevation
-              aria-label="Main navigation"
             >
               {[
-                { to: "/admin", label: "Admin" },
-                { to: "/locker", label: "Locker" },
-                { to: "/stress", label: "Stress Test" },
+                { to: "/admin", label: "Locker Management" },
+                { to: "/locker", label: "Locker Console" },
+                { to: "/stress", label: "Concurrency Test" },
               ].map(({ to, label }) => (
                 <Button
+                  size="small"
                   key={to}
                   component={Link}
                   to={to}
                   variant={pathname === to ? "contained" : "outlined"}
-                  aria-current={pathname === to ? "page" : undefined}
                 >
                   {label}
                 </Button>
@@ -51,9 +48,9 @@ export function App() {
   return (
     <BrowserRouter>
       <CssBaseline />
-      <Stack sx={{ minHeight: "100dvh" }}>
+      <Stack sx={{ height: "100dvh" }}>
         <AppNavigation />
-        <Container component="main" maxWidth="lg" sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <Container component="main" maxWidth="lg" sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflowY: "auto" }}>
           <Routes>
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/locker" element={<LockerPage />} />

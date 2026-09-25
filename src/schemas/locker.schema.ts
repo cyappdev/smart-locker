@@ -33,6 +33,19 @@ export const listLockersSchema = z
   })
   .strict();
 
+export const listLockerEventsParamsSchema = z
+  .object({
+    lockerId: z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(z.number().int().safe().positive()),
+  })
+  .strict();
+
+export const listLockerEventsQuerySchema = z
+  .object({
+    page: pageNumber.default(1),
+    limit: pageLimit.default(10),
+  })
+  .strict();
+
 export const storePackageSchema = z
   .object({
     size: z.enum(SIZE_CATEGORIES),
@@ -52,5 +65,6 @@ export const retrievePackageSchema = z
 
 export type CreateLockerInput = z.infer<typeof createLockerSchema>;
 export type ListLockersInput = z.infer<typeof listLockersSchema>;
+export type ListLockerEventsInput = z.infer<typeof listLockerEventsParamsSchema> & z.infer<typeof listLockerEventsQuerySchema>;
 export type StorePackageInput = z.infer<typeof storePackageSchema>;
 export type RetrievePackageInput = z.infer<typeof retrievePackageSchema>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TieredStorageFeePolicy } from "../src/services/storage-fee-policy.ts";
+import { TieredStorageFeePolicy } from "../../src/services/storage-fee-policy.ts";
 
 describe("TieredStorageFeePolicy", () => {
   const policy = new TieredStorageFeePolicy();

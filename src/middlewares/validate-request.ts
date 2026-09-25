@@ -4,6 +4,7 @@ import type { ZodType } from "zod";
 type RequestSchemas = {
   body?: ZodType;
   query?: ZodType;
+  params?: ZodType;
 };
 
 export const validateRequest = (schemas: RequestSchemas): RequestHandler => {
@@ -26,6 +27,7 @@ export const validateRequest = (schemas: RequestSchemas): RequestHandler => {
 
       if (source === "body") res.locals.validatedBody = result.data;
       if (source === "query") res.locals.validatedQuery = result.data;
+      if (source === "params") res.locals.validatedParams = result.data;
     }
 
     next();

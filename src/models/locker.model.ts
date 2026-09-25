@@ -48,18 +48,25 @@ Locker.init(
     packageIdentifier: {
       type: new DataTypes.STRING(128),
       allowNull: true,
+      field: "package_identifier",
     },
     lastOccupiedAt: {
       type: DataTypes.DATE,
       allowNull: true,
+      field: "last_occupied_at",
     },
     pickupCode: {
       type: new DataTypes.STRING(128),
       allowNull: true,
       unique: true,
+      field: "pickup_code",
     },
-    createdAt: DataTypes.DATE,
-    updatedAt: DataTypes.DATE,
+    createdAt: { type: DataTypes.DATE, field: "created_at" },
+    updatedAt: { type: DataTypes.DATE, field: "updated_at" },
   },
-  { sequelize },
+  {
+    sequelize,
+    tableName: "lockers",
+    timestamps: true,
+  },
 );

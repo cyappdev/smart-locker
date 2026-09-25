@@ -1,6 +1,7 @@
 import { UniqueConstraintError } from "sequelize";
 import { assert, describe, expect, it, vi } from "vitest";
 import type { Locker } from "../../src/models/locker.model.ts";
+import type { LockerEvent } from "../../src/models/locker-event.model.ts";
 import type { LockerRepositoryPort } from "../../src/repositories/locker.repository.ts";
 import { LockerService } from "../../src/services/locker.service.ts";
 import { AppError } from "../../src/errors/app-error.ts";
@@ -22,6 +23,7 @@ const makeRepository = (
 ): LockerRepositoryPort => ({
   create: vi.fn(async (input) => makeLocker(input)),
   list: vi.fn(async () => ({ rows: [], count: 0 })),
+  listEvents: vi.fn(async () => ({ rows: [], count: 0 })),
   findAvailable: vi.fn(async () => null),
   assignPackage: vi.fn(async (locker, packageIdentifier, pickupCode, occupiedAt) =>
     makeLocker({
@@ -169,6 +171,45 @@ describe("LockerService", () => {
     expect(result.data[0].pickupCode).toBe("secret");
   });
 
+  it("formats locker events and pagination without exposing locker internals", async () => {
+    const repository = makeRepository({
+      listEvents: vi.fn(async () => ({
+        rows: [{
+          id: 7,
+          lockerId: 1,
+          eventType: "package_retrieved",
+          lockerStatus: "available",
+          packageIdentifier: "ORDER-1",
+          chargesInCents: 100,
+          createdAt: new Date("2024-06-02T00:00:00.000Z"),
+        } as LockerEvent],
+        count: 21,
+      })),
+    });
+
+    const result = await new LockerService(repository).listLockerEvents({ lockerId: 1, page: 2, limit: 10 });
+
+    expect(result).toEqual({
+      data: [{
+        id: 7,
+        eventType: "package_retrieved",
+        lockerStatus: "available",
+        packageIdentifier: "ORDER-1",
+        chargesInCents: 100,
+        createdAt: "2024-06-02T00:00:00.000Z",
+      }],
+      pagination: { page: 2, limit: 10, total: 21, totalPages: 3 },
+    });
+    expect(repository.listEvents).toHaveBeenCalledWith({ lockerId: 1, page: 2, limit: 10 });
+  });
+
+  it("returns LOCKER_NOT_FOUND when listing events for an unknown locker", async () => {
+    const service = new LockerService(makeRepository({ listEvents: vi.fn(async () => null) }));
+
+    await expect(service.listLockerEvents({ lockerId: 999, page: 1, limit: 10 }))
+      .rejects.toMatchObject({ status: 404, code: "LOCKER_NOT_FOUND" });
+  });
+
   it("retrieves the matching package before the first completed day", async () => {
     const occupiedAt = new Date("2024-06-01T12:00:00.000Z");
     const calculatedAt = new Date("2024-06-02T11:00:00.000Z");
@@ -194,10 +235,12 @@ describe("LockerService", () => {
   it.each([undefined, false, true])("previews positive charges unless confirmed: %s", async (confirmCharges) => {
     const occupiedAt = new Date("2024-06-01T12:00:00.000Z");
     const decisions: boolean[] = [];
+    const charges: number[] = [];
     const repository = makeRepository({
       retrievePackage: vi.fn(async (_identifier, _code, decide) => {
         const decision = decide({ packageIdentifier: "ORDER-123", lastOccupiedAt: occupiedAt });
         decisions.push(decision.release);
+        charges.push(decision.chargesInCents);
         return decision.result;
       }),
     });
@@ -206,6 +249,7 @@ describe("LockerService", () => {
     expect(result.status).toBe(confirmCharges === true ? "retrieved" : "charges_required");
     expect(result.chargesInCents).toBe(100);
     expect(decisions).toEqual([confirmCharges === true]);
+    expect(charges).toEqual([100]);
   });
 
   it("recalculates a previewed charge when confirmation crosses a day boundary", async () => {
@@ -233,6 +277,7 @@ describe("LockerService", () => {
       retrievePackage: vi.fn(async (_identifier, _code, decide) => {
         const decision = decide({ packageIdentifier: "ORDER-123", lastOccupiedAt: new Date("2024-06-01T12:00:00.000Z") });
         expect(decision.release).toBe(true);
+        expect(decision.chargesInCents).toBe(0);
         return decision.result;
       }),
     });

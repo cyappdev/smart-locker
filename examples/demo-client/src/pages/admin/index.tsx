@@ -1,12 +1,14 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { listLocker } from "../../api/locker/listLocker";
+import { listLocker, type Locker } from "../../api/locker/listLocker";
 import { useState } from "react";
 import { Alert, Button, Container, Stack } from "@mui/material";
 import { LockerCreateDialog } from "./components/LockerCreateDialog";
+import { LockerEventDialog } from "./components/LockerEventDialog";
 import { LockerListing } from "./components/LockerListing";
 
 export const AdminPage = () => {
     const [createOpen, setCreateOpen] = useState(false);
+    const [eventLocker, setEventLocker] = useState<Locker | null>(null);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const lockers = useQuery({
@@ -17,10 +19,10 @@ export const AdminPage = () => {
     const [createdIdentifier, setCreatedIdentifier] = useState<string | null>(null);
 
     return (
-        <Container component="section" maxWidth="lg" sx={{ p: 4 }}>
-            <Stack spacing={2}>
+        <Container component="section" maxWidth="lg" sx={{ p: 4, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
                 <Stack direction="row" spacing={2}>
-                    <Button variant="contained" onClick={() => setCreateOpen(true)}>Create locker</Button>
+                    <Button size="small" variant="contained" onClick={() => setCreateOpen(true)}>New locker</Button>
                 </Stack>
                 {createdIdentifier && (
                     <Alert severity="success" onClose={() => setCreatedIdentifier(null)}>
@@ -33,6 +35,9 @@ export const AdminPage = () => {
                     error={lockers.isError}
                     page={page}
                     rowsPerPage={rowsPerPage}
+                    onRowClick={(locker) => {
+                        setEventLocker(locker);
+                    }}
                     onRetry={() => { void lockers.refetch(); }}
                     onPageChange={setPage}
                     onRowsPerPageChange={(limit) => {
@@ -48,6 +53,7 @@ export const AdminPage = () => {
                     setCreatedIdentifier(locker.identifier);
                 }}
             />
+            <LockerEventDialog locker={eventLocker} onClose={() => setEventLocker(null)} />
         </Container>
     );
 };

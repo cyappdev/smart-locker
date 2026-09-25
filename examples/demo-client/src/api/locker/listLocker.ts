@@ -10,20 +10,22 @@ export interface ListLockerRequest {
 }
 
 export interface ListLockerResponse {
-    data: Array<{
-        id: number;
-        identifier: string;
-        size: SizeCategory;
-        status: LockerStatus;
-        packageIdentifier: string | null;
-        pickupCode: string | null;
-    }>;
+    data: Array<Locker>;
     pagination: {
         page: number;
         limit: number;
         total: number;
         totalPages: number;
     };
+}
+export interface Locker {
+    id: number;
+    identifier: string;
+    size: SizeCategory;
+    status: LockerStatus;
+    packageIdentifier: string | null;
+    pickupCode: string | null;
+
 }
 
 

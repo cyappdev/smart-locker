@@ -6,6 +6,8 @@ import {
 import { validateRequest } from "../middlewares/validate-request.ts";
 import {
   createLockerSchema,
+  listLockerEventsParamsSchema,
+  listLockerEventsQuerySchema,
   listLockersSchema,
   retrievePackageSchema,
   storePackageSchema,
@@ -18,6 +20,11 @@ export const createLockerRouter = (
 
   router.post("/", validateRequest({ body: createLockerSchema }), controller.create);
   router.get("/", validateRequest({ query: listLockersSchema }), controller.list);
+  router.get(
+    "/:lockerId/events",
+    validateRequest({ params: listLockerEventsParamsSchema, query: listLockerEventsQuerySchema }),
+    controller.listEvents,
+  );
   router.post(
     "/store",
     validateRequest({ body: storePackageSchema }),

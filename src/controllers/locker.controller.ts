@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import type {
   CreateLockerInput,
+  ListLockerEventsInput,
   ListLockersInput,
   RetrievePackageInput,
   StorePackageInput,
@@ -32,6 +33,12 @@ export class LockerController {
   list: RequestHandler = async (_req, res) => {
     const input = res.locals.validatedQuery as ListLockersInput;
     res.json(await this.service.listLockers(input));
+  };
+
+  listEvents: RequestHandler = async (_req, res) => {
+    const params = res.locals.validatedParams as Pick<ListLockerEventsInput, "lockerId">;
+    const query = res.locals.validatedQuery as Omit<ListLockerEventsInput, "lockerId">;
+    res.json(await this.service.listLockerEvents({ ...params, ...query }));
   };
 
   store: RequestHandler = async (_req, res) => {

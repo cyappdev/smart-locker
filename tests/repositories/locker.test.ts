@@ -1,11 +1,14 @@
 import { MySqlContainer, type StartedMySqlContainer } from "@testcontainers/mysql";
+import { UniqueConstraintError } from "sequelize";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-describe("LockerRepository retrieval", () => {
+describe("LockerRepository storage and retrieval", () => {
   let container: StartedMySqlContainer | undefined;
   let sequelize: typeof import("../../src/configs/database.ts").sequelize;
   let Locker: typeof import("../../src/models/locker.model.ts").Locker;
+  let LockerEvent: typeof import("../../src/models/locker-event.model.ts").LockerEvent;
   let LockerRepository: typeof import("../../src/repositories/locker.repository.ts").LockerRepository;
+  let LockerService: typeof import("../../src/services/locker.service.ts").LockerService;
 
   beforeAll(async () => {
     container = await new MySqlContainer("mysql:8.4")
@@ -21,7 +24,9 @@ describe("LockerRepository retrieval", () => {
 
     ({ sequelize } = await import("../../src/configs/database.ts"));
     ({ Locker } = await import("../../src/models/locker.model.ts"));
+    ({ LockerEvent } = await import("../../src/models/locker-event.model.ts"));
     ({ LockerRepository } = await import("../../src/repositories/locker.repository.ts"));
+    ({ LockerService } = await import("../../src/services/locker.service.ts"));
     await sequelize.sync();
   }, 120_000);
 
@@ -46,6 +51,225 @@ describe("LockerRepository retrieval", () => {
     lastOccupiedAt: new Date("2024-06-01T12:00:00.000Z"),
   });
 
+  const createAvailableLocker = async (size: "small" | "medium" | "large") => Locker.create({
+    identifier: `test-${crypto.randomUUID()}`,
+    size,
+    status: "available",
+    packageIdentifier: null,
+    pickupCode: null,
+    lastOccupiedAt: null,
+  });
+
+  it("persists a locker event with the requested columns", async () => {
+    const locker = await createAvailableLocker("small");
+    try {
+      const event = await LockerEvent.create({
+        lockerId: locker.id,
+        eventType: "status_changed",
+        lockerStatus: "available",
+        packageIdentifier: null,
+        chargesInCents: null,
+      });
+
+      expect(event.createdAt).toBeInstanceOf(Date);
+      expect(await LockerEvent.findByPk(event.id)).toMatchObject({
+        lockerId: locker.id,
+        eventType: "status_changed",
+        lockerStatus: "available",
+        packageIdentifier: null,
+        chargesInCents: null,
+      });
+      const columns = Object.keys(await sequelize.getQueryInterface().describeTable("locker_events"));
+      expect(columns).toEqual(expect.arrayContaining([
+        "id", "locker_id", "event_type", "locker_status",
+        "package_identifier", "charges_in_cents", "created_at",
+      ]));
+      expect(columns).not.toContain("updated_at");
+    } finally {
+      await LockerEvent.destroy({ where: { lockerId: locker.id } });
+      await locker.destroy();
+    }
+  });
+
+  it("lists only a locker's events newest first with pagination", async () => {
+    const locker = await createAvailableLocker("small");
+    const otherLocker = await createAvailableLocker("small");
+    try {
+      const events = [
+        await LockerEvent.create({ lockerId: locker.id, eventType: "package_stored", lockerStatus: "occupied", packageIdentifier: "ORDER-1", chargesInCents: null, createdAt: new Date("2024-06-01T00:00:00.000Z") }),
+        await LockerEvent.create({ lockerId: locker.id, eventType: "package_retrieved", lockerStatus: "available", packageIdentifier: "ORDER-1", chargesInCents: 100, createdAt: new Date("2024-06-02T00:00:00.000Z") }),
+        await LockerEvent.create({ lockerId: locker.id, eventType: "status_changed", lockerStatus: "available", packageIdentifier: null, chargesInCents: null, createdAt: new Date("2024-06-02T00:00:00.000Z") }),
+        await LockerEvent.create({ lockerId: otherLocker.id, eventType: "status_changed", lockerStatus: "available", packageIdentifier: null, chargesInCents: null, createdAt: new Date("2024-06-03T00:00:00.000Z") }),
+      ];
+      const repository = new LockerRepository();
+
+      const firstPage = await repository.listEvents({ lockerId: locker.id, page: 1, limit: 1 });
+      expect(firstPage?.count).toBe(3);
+      expect(firstPage?.rows.map((event) => event.id)).toEqual([events[2].id]);
+
+      const secondPage = await repository.listEvents({ lockerId: locker.id, page: 2, limit: 1 });
+      expect(secondPage?.count).toBe(3);
+      expect(secondPage?.rows.map((event) => event.id)).toEqual([events[1].id]);
+
+      const emptyLocker = await createAvailableLocker("small");
+      try {
+        expect(await repository.listEvents({ lockerId: emptyLocker.id, page: 1, limit: 10 }))
+          .toMatchObject({ count: 0, rows: [] });
+      } finally {
+        await emptyLocker.destroy();
+      }
+      expect(await repository.listEvents({ lockerId: 999_999_999, page: 1, limit: 10 })).toBeNull();
+    } finally {
+      await LockerEvent.destroy({ where: { lockerId: [locker.id, otherLocker.id] } });
+      await Locker.destroy({ where: { id: [locker.id, otherLocker.id] } });
+    }
+  });
+
+  it("does not overwrite a locker selected before another assignment", async () => {
+    const locker = await createAvailableLocker("small");
+    const repository = new LockerRepository();
+
+    expect(await repository.assignPackage(locker, "ORDER-1", "101001", new Date())).toMatchObject({
+      packageIdentifier: "ORDER-1",
+    });
+    expect(await repository.assignPackage(locker, "ORDER-2", "101002", new Date())).toBeNull();
+
+    expect(await LockerEvent.findAll({ where: { lockerId: locker.id } }))
+      .toMatchObject([{
+        eventType: "package_stored",
+        lockerStatus: "occupied",
+        packageIdentifier: "ORDER-1",
+        chargesInCents: null,
+      }]);
+
+    await locker.reload();
+    expect(locker).toMatchObject({
+      status: "occupied",
+      packageIdentifier: "ORDER-1",
+      pickupCode: "101001",
+    });
+  });
+
+  it("assigns each available locker once under competing storage requests", async () => {
+    const small = await createAvailableLocker("small");
+    const medium = await createAvailableLocker("medium");
+    const repository = new LockerRepository();
+    const findAvailable = repository.findAvailable.bind(repository);
+    let firstSelections = 0;
+    let releaseSelections!: () => void;
+    const selectionsComplete = new Promise<void>((resolve) => { releaseSelections = resolve; });
+
+    vi.spyOn(repository, "findAvailable").mockImplementation(async (sizes) => {
+      const selected = await findAvailable(sizes);
+      if (++firstSelections <= 3) {
+        if (firstSelections === 3) releaseSelections();
+        await selectionsComplete;
+      }
+      return selected;
+    });
+
+    const outcomes = await Promise.allSettled([1, 2, 3].map((number) =>
+      new LockerService(repository, () => `10100${number}`).storePackage({
+        size: "small",
+        packageIdentifier: `ORDER-${number}`,
+      }),
+    ));
+
+    const successes = outcomes.filter((outcome) => outcome.status === "fulfilled");
+    const failures = outcomes.filter((outcome) => outcome.status === "rejected");
+    expect(successes).toHaveLength(2);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].reason).toMatchObject({ code: "LOCKER_NOT_FOUND" });
+    expect(new Set(successes.map((outcome) => outcome.value.lockerId))).toEqual(new Set([small.id, medium.id]));
+
+    await Promise.all([small.reload(), medium.reload()]);
+    for (const locker of [small, medium]) {
+      const response = successes.find((outcome) => outcome.value.lockerId === locker.id)!.value;
+      expect(locker).toMatchObject({
+        status: "occupied",
+        packageIdentifier: response.packageIdentifier,
+        pickupCode: response.pickupCode,
+      });
+    }
+  });
+
+  it("rolls back a storage assignment when the pickup code is already in use", async () => {
+    const existing = await createAssignment();
+    const locker = await createAvailableLocker("small");
+    const repository = new LockerRepository();
+
+    await expect(repository.assignPackage(locker, "ORDER-NEW", existing.pickupCode!, new Date()))
+      .rejects.toBeInstanceOf(UniqueConstraintError);
+    expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(0);
+    await locker.reload();
+    expect(locker).toMatchObject({
+      status: "available",
+      packageIdentifier: null,
+      pickupCode: null,
+      lastOccupiedAt: null,
+    });
+
+    expect(await repository.assignPackage(locker, "ORDER-NEW", "102001", new Date()))
+      .toMatchObject({ status: "occupied", packageIdentifier: "ORDER-NEW" });
+    expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(1);
+  });
+
+  it("rolls back storage when its event cannot be written", async () => {
+    const locker = await createAvailableLocker("small");
+    try {
+      const hookName = "reject-storage-event";
+      LockerEvent.addHook("beforeCreate", hookName, () => {
+        throw new Error("event insert failed");
+      });
+
+      try {
+        await expect(new LockerRepository().assignPackage(locker, "ORDER-NEW", "303001", new Date()))
+          .rejects.toThrow("event insert failed");
+      } finally {
+        LockerEvent.removeHook("beforeCreate", hookName);
+      }
+
+      await locker.reload();
+      expect(locker).toMatchObject({
+        status: "available",
+        packageIdentifier: null,
+        pickupCode: null,
+        lastOccupiedAt: null,
+      });
+      expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(0);
+    } finally {
+      await locker.destroy();
+    }
+  });
+
+  it("stores only as many packages as there are lockers under a burst of requests", async () => {
+    const lockers = await Promise.all(Array.from({ length: 4 }, () => createAvailableLocker("small")));
+    const repository = new LockerRepository();
+    const outcomes = await Promise.allSettled(Array.from({ length: 12 }, (_, index) =>
+      new LockerService(repository, () => String(200000 + index)).storePackage({
+        size: "small",
+        packageIdentifier: `BURST-${index}`,
+      }),
+    ));
+
+    const successes = outcomes.filter((outcome) => outcome.status === "fulfilled");
+    const failures = outcomes.filter((outcome) => outcome.status === "rejected");
+    expect(successes).toHaveLength(lockers.length);
+    expect(failures).toHaveLength(outcomes.length - lockers.length);
+    expect(failures.every((outcome) => outcome.reason.code === "LOCKER_NOT_FOUND")).toBe(true);
+    expect(new Set(successes.map((outcome) => outcome.value.lockerId)).size).toBe(lockers.length);
+
+    await Promise.all(lockers.map((locker) => locker.reload()));
+    for (const locker of lockers) {
+      const response = successes.find((outcome) => outcome.value.lockerId === locker.id)!.value;
+      expect(locker).toMatchObject({
+        status: "occupied",
+        packageIdentifier: response.packageIdentifier,
+        pickupCode: response.pickupCode,
+      });
+    }
+  }, 30_000);
+
   it("leaves every assignment field unchanged after a preview", async () => {
     const locker = await createAssignment();
     const original = {
@@ -58,13 +282,14 @@ describe("LockerRepository retrieval", () => {
     const result = await new LockerRepository().retrievePackage(
       locker.identifier,
       locker.pickupCode!,
-      (assignment) => ({ result: assignment, release: false }),
+      (assignment) => ({ result: assignment, release: false, chargesInCents: 100 }),
     );
 
     expect(result).toEqual({
       packageIdentifier: original.packageIdentifier,
       lastOccupiedAt: locker.lastOccupiedAt,
     });
+    expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(0);
     await locker.reload();
     expect({
       status: locker.status,
@@ -81,13 +306,20 @@ describe("LockerRepository retrieval", () => {
     const result = await new LockerRepository().retrievePackage(
       locker.identifier,
       locker.pickupCode!,
-      (assignment) => ({ result: assignment, release: true }),
+      (assignment) => ({ result: assignment, release: true, chargesInCents: 100 }),
     );
 
     expect(result).toEqual({
       packageIdentifier: "ORDER-123",
       lastOccupiedAt: new Date(occupiedAt!),
     });
+    expect(await LockerEvent.findAll({ where: { lockerId: locker.id } }))
+      .toMatchObject([{
+        eventType: "package_retrieved",
+        lockerStatus: "available",
+        packageIdentifier: "ORDER-123",
+        chargesInCents: 100,
+      }]);
     await locker.reload();
     expect(locker).toMatchObject({
       status: "available",
@@ -108,7 +340,7 @@ describe("LockerRepository retrieval", () => {
       await expect(new LockerRepository().retrievePackage(
         locker.identifier,
         locker.pickupCode!,
-        () => ({ result: "retrieved", release: true }),
+        () => ({ result: "retrieved", release: true, chargesInCents: 0 }),
       )).rejects.toThrow("update failed");
     } finally {
       Locker.removeHook("beforeUpdate", hookName);
@@ -121,6 +353,34 @@ describe("LockerRepository retrieval", () => {
     });
     expect(locker.pickupCode).not.toBeNull();
     expect(locker.lastOccupiedAt).not.toBeNull();
+    expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(0);
+  });
+
+  it("rolls back retrieval when its event cannot be written", async () => {
+    const locker = await createAssignment();
+    const hookName = "reject-retrieval-event";
+    LockerEvent.addHook("beforeCreate", hookName, () => {
+      throw new Error("event insert failed");
+    });
+
+    try {
+      await expect(new LockerRepository().retrievePackage(
+        locker.identifier,
+        locker.pickupCode!,
+        () => ({ result: "retrieved", release: true, chargesInCents: 100 }),
+      )).rejects.toThrow("event insert failed");
+    } finally {
+      LockerEvent.removeHook("beforeCreate", hookName);
+    }
+
+    await locker.reload();
+    expect(locker).toMatchObject({
+      status: "occupied",
+      packageIdentifier: "ORDER-123",
+    });
+    expect(locker.pickupCode).not.toBeNull();
+    expect(locker.lastOccupiedAt).not.toBeNull();
+    expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(0);
   });
 
   it("does not call the decision callback when no occupied assignment matches", async () => {
@@ -131,12 +391,13 @@ describe("LockerRepository retrieval", () => {
       "wrong-code",
       () => {
         called = true;
-        return { result: "retrieved", release: true };
+        return { result: "retrieved", release: true, chargesInCents: 0 };
       },
     );
 
     expect(result).toBeNull();
     expect(called).toBe(false);
+    expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(0);
     await locker.reload();
     expect(locker.status).toBe("occupied");
   });
@@ -147,7 +408,7 @@ describe("LockerRepository retrieval", () => {
     const retrieve = () => repository.retrievePackage(
       locker.identifier,
       locker.pickupCode!,
-      () => ({ result: "retrieved", release: true }),
+      () => ({ result: "retrieved", release: true, chargesInCents: 0 }),
     );
 
     const results = await Promise.all([retrieve(), retrieve()]);
@@ -155,5 +416,11 @@ describe("LockerRepository retrieval", () => {
     expect(results).toContain(null);
     await locker.reload();
     expect(locker.status).toBe("available");
+    expect(await LockerEvent.findAll({ where: { lockerId: locker.id, eventType: "package_retrieved" } }))
+      .toMatchObject([{
+        lockerStatus: "available",
+        packageIdentifier: "ORDER-123",
+        chargesInCents: 0,
+      }]);
   });
 });

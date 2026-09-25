@@ -1,33 +1,128 @@
 # Smart Package Locker Management System
 
-TypeScript, Express, Sequelize, and MySQL implementation of locker creation, storage, and retrieval through Level 3 of the [challenge](context/requirement.md). The [API draft](context/api.md) defines request validation, response shapes, and charge rules.
+```mermaid
+flowchart LR
+    agent[Delivery agent]
+    customer[Customer]
+    operator[Operator]
 
-## Run
+    subgraph system[Smart Package Locker Management System]
+        create([Create lockers])
+        list([View lockers and events])
+        store([Store package])
+        retrieve([Retrieve package])
+    end
 
-Use Node 22 or newer. Configure `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in `.env`, then run `npm ci` and `npm run dev`. MySQL must already be available. The app calls `sequelize.sync()` and listens on port 3000.
-
-```sh
-curl -X POST http://localhost:3000/api/lockers/retrieve \
-  -H 'Content-Type: application/json' \
-  -d '{"lockerIdentifier":"A1","pickupCode":"048291"}'
+    operator --> create
+    operator --> list
+    agent --> store
+    customer --> retrieve
 ```
 
-A request under 24 hours returns `status: "retrieved"` with zero charges. At 24 hours or later, it returns `status: "charges_required"` and leaves the package in place. Send the same request with `"confirmCharges": true` to acknowledge the charge and complete retrieval. Confirmation recalculates charges at its own server time, so the amount can rise after a preview. No payment is processed.
+## Tech Stack
 
-Responses include `packageIdentifier`, `occupiedAt`, `calculatedAt`, and integer `chargesInCents`. The service bills completed 24-hour periods at 100 cents per day for days 1–5, 200 for days 6–10, and 300 thereafter. A missing, invalid, or future storage timestamp is treated as a server data error (HTTP 500); the assignment remains occupied.
+| Layer                  | Technology                       |
+| ---------------------- | -------------------------------- |
+| Backend                | TypeScript, ExpressJS, Sequelize |
+| Database               | MySQL 8                          |
+| Frontend / Demo-client | TypeScript, React                |
+| Deployment             | Docker                           |
 
-The repository locks the matching occupied locker in a MySQL transaction. It clears the assignment only after the service has calculated a valid retrieval decision. The model stores only the current assignment and has no payment or package history. Hardware interaction is mocked. Locker allocation concurrency is outside this Level 3 implementation.
+## Project structure
 
-## Optional demo UI
+```text
+src/
+  routes/          HTTP endpoints
+  schemas/         Request validation
+  controllers/     HTTP request and response handling
+  services/        Locker workflows and storage pricing
+  repositories/    Database queries and transactions
+  models/          Database Models
+tests/             API and integration tests
+examples/
+  demo-client/     React demo client
+docs/             API reference, data model, and specifications
+.github/
+  workflows/      GitHub Actions test workflow
+```
 
-The REST API is the primary interface and the part evaluated for business behavior. The `examples/web/` frontend is an optional demonstration that makes it easier for reviewers to exercise the API, not a separate implementation of the locker rules. The API remains the source of truth for locker allocation, retrieval, and storage charges; the demo submits requests and displays responses.
+## Run with Docker
+
+Prerequisite:
+
+- Docker Compose
+- Port 3000, 3001, 3002 are available
+
+From the project root run:
+
+```sh
+docker compose up --build
+```
+
+Services will be available at the following endpoints:
+
+| Services    | Endpoint                      | Description                                                             |
+| ----------- | ----------------------------- | ----------------------------------------------------------------------- |
+| api         | `http://localhost:3000/api/*` | REST API for locker and charge rules refer [API reference](docs/api.md) |
+| demo-client | `http://localhost:3001`       | [Demo React client for trying the API with UI](#demo-client)            |
+| MySQL       | `localhost:3002`              | MySQL Database                                                          |
 
 ## Tests
 
-Run `npm test` and `npm run typecheck` with Node 22 or newer. The repository tests start a disposable MySQL container, so Docker must be running for `npm test`. The separate opt-in database tests use `RUN_MYSQL_INTEGRATION=1` and `TEST_DB_NAME` set to a dedicated database whose name begins with `splms_test`. Set `TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_USER`, and `TEST_DB_PASSWORD` as needed. Those tests create their own rows and delete only those rows; they never target the development database.
+Prerequisite:
 
-The current list endpoint includes debug `packageIdentifier` and `pickupCode` fields. This behavior is retained for now, although the API draft describes a public-only list response.
+- Docker Compose
+- Node.js 22 or newer
 
-## AI assistance
+```sh
+npm ci
+npm test
+```
 
-OpenAI Codex assisted with the Level 3 plan, implementation, tests, and documentation. The approach was checked against the challenge requirements and API draft. The project owner remains responsible for reviewing and validating the submission.
+The repository tests require Docker because they run MySQL through `@testcontainers/mysql`.
+
+## Demo Client
+
+The [React demo client](examples/demo-client/) lets you test the API in a browser at `http://localhost:3001`.
+
+### Locker management
+
+Create lockers and inspect their current assignments.
+
+![Locker management page showing locker sizes, statuses, and package assignments](docs/images/demo-client-manage.png)
+
+### Locker console
+
+Store or retrieve a package through the demo interface.
+
+![Locker console with store and retrieve package actions](docs/images/demo-client-console.png)
+
+### Concurrency test
+
+Send concurrent storage requests and inspect each result.
+
+![Concurrency test showing successful assignments and requests with no available locker](docs/images/demo-client-concurrency.png)
+
+## Run development server
+
+Prerequisite:
+
+- Docker Compose
+- Node.js 22 or newer
+
+```sh
+docker compose up mysql
+npm ci
+npm run dev
+```
+
+## Other Document
+
+- [Data Model](docs/data-model.md)
+- [Storage pricing](docs/specs/storage-pricing.md)
+
+## Out Of Scope or Not Implemented
+
+- **Access control:** Admin and delivery operations have no authentication or role-based authorization.
+- **Production deployment:** The tracked `.env` and published service ports support local demonstration, not production secret management or network security. The services may be reachable from other devices on the host network.
+- **Demo UI:** `examples/demo-client` is a small React client for trying the API, not a production quality frontend. The backend remains the source of truth for locker and charge rules.

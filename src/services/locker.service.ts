@@ -7,11 +7,13 @@ import {
 } from "../repositories/locker.repository.ts";
 import type {
   CreateLockerInput,
+  ListLockerEventsInput,
   ListLockersInput,
   RetrievePackageInput,
   StorePackageInput,
 } from "../schemas/locker.schema.ts";
 import type { SizeCategory } from "../types/size-category.ts";
+import type { LockerEventType } from "../types/locker-event-type.ts";
 import type { LockerStatus } from "../types/locker-status.ts";
 import {
   TieredStorageFeePolicy,
@@ -34,6 +36,23 @@ export interface RetrievePackageResult {
   chargesInCents: number;
 }
 
+export interface ListLockerEventsResult {
+  data: Array<{
+    id: number;
+    eventType: LockerEventType;
+    lockerStatus: LockerStatus;
+    packageIdentifier: string | null;
+    chargesInCents: number | null;
+    createdAt: string;
+  }>;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface LockerServicePort {
   createLocker(
     input: CreateLockerInput,
@@ -54,6 +73,7 @@ export interface LockerServicePort {
       totalPages: number;
     };
   }>;
+  listLockerEvents(input: ListLockerEventsInput): Promise<ListLockerEventsResult>;
   storePackage(input: StorePackageInput): Promise<{
     lockerId: number;
     identifier: string;
@@ -108,43 +128,77 @@ export class LockerService implements LockerServicePort {
     };
   }
 
-  async storePackage(input: StorePackageInput) {
-    const locker = await this.repository.findAvailable(
-      ELIGIBLE_LOCKER_SIZES[input.size],
-    );
-
-    if (!locker) {
-      throw new AppError(404, "LOCKER_NOT_FOUND", "No suitable locker found.");
+  async listLockerEvents(input: ListLockerEventsInput): Promise<ListLockerEventsResult> {
+    const result = await this.repository.listEvents(input);
+    if (!result) {
+      throw new AppError(404, "LOCKER_NOT_FOUND", "Locker not found.");
     }
 
-    for (let attempt = 0; attempt < PICKUP_CODE_ATTEMPTS; attempt += 1) {
-      const pickupCode = this.generatePickupCode();
+    return {
+      data: result.rows.map(({ id, eventType, lockerStatus, packageIdentifier, chargesInCents, createdAt }) => ({
+        id,
+        eventType,
+        lockerStatus,
+        packageIdentifier,
+        chargesInCents,
+        createdAt: createdAt.toISOString(),
+      })),
+      pagination: {
+        page: input.page,
+        limit: input.limit,
+        total: result.count,
+        totalPages: Math.ceil(result.count / input.limit),
+      },
+    };
+  }
 
-      try {
-        const updatedLocker = await this.repository.assignPackage(
-          locker,
-          input.packageIdentifier,
-          pickupCode,
-          new Date(),
+  async storePackage(input: StorePackageInput) {
+    while (true) {
+      const locker = await this.repository.findAvailable(
+        ELIGIBLE_LOCKER_SIZES[input.size],
+      );
+
+      if (!locker) {
+        throw new AppError(404, "LOCKER_NOT_FOUND", "No suitable locker found.");
+      }
+
+      let claimedByAnotherRequest = false;
+      for (let attempt = 0; attempt < PICKUP_CODE_ATTEMPTS; attempt += 1) {
+        const pickupCode = this.generatePickupCode();
+
+        try {
+          const updatedLocker = await this.repository.assignPackage(
+            locker,
+            input.packageIdentifier,
+            pickupCode,
+            new Date(),
+          );
+
+          if (!updatedLocker) {
+            claimedByAnotherRequest = true;
+            break;
+          }
+
+          return {
+            lockerId: updatedLocker.id,
+            identifier: updatedLocker.identifier,
+            packageIdentifier: updatedLocker.packageIdentifier!,
+            pickupCode: updatedLocker.pickupCode!,
+            status: "occupied" as const,
+          };
+        } catch (error) {
+          if (!(error instanceof UniqueConstraintError)) throw error;
+        }
+      }
+
+      if (!claimedByAnotherRequest) {
+        throw new AppError(
+          500,
+          "PICKUP_CODE_GENERATION_FAILED",
+          "A unique pickup code could not be generated.",
         );
-
-        return {
-          lockerId: updatedLocker.id,
-          identifier: updatedLocker.identifier,
-          packageIdentifier: updatedLocker.packageIdentifier!,
-          pickupCode: updatedLocker.pickupCode!,
-          status: "occupied" as const,
-        };
-      } catch (error) {
-        if (!(error instanceof UniqueConstraintError)) throw error;
       }
     }
-
-    throw new AppError(
-      500,
-      "PICKUP_CODE_GENERATION_FAILED",
-      "A unique pickup code could not be generated.",
-    );
   }
 
   async retrievePackage(input: RetrievePackageInput) {
@@ -161,6 +215,7 @@ export class LockerService implements LockerServicePort {
 
         return {
           release,
+          chargesInCents,
           result: {
             status: release ? "retrieved" as const : "charges_required" as const,
             packageIdentifier,
