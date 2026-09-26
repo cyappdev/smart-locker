@@ -1,9 +1,9 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
-import { createApp } from "../src/app.ts";
-import { LockerController } from "../src/controllers/locker.controller.ts";
-import { AppError } from "../src/errors/app-error.ts";
-import type { LockerServicePort } from "../src/services/locker.service.ts";
+import { createApp } from "../../src/app.ts";
+import { LockerController } from "../../src/controllers/locker.controller.ts";
+import { AppError } from "../../src/errors/app-error.ts";
+import type { LockerServicePort } from "../../src/services/locker.service.ts";
 
 const createTestApp = () => {
   const listLockerEvents = vi.fn<LockerServicePort["listLockerEvents"]>();

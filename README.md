@@ -38,7 +38,7 @@ src/
   services/        Locker workflows and storage pricing
   repositories/    Database queries and transactions
   models/          Database Models
-tests/             API and integration tests
+tests/             Unit, API, and MySQL integration tests
 examples/
   demo-client/     React demo client
 docs/             API reference, data model, and specifications
@@ -71,7 +71,7 @@ Services will be available at the following endpoints:
 
 Prerequisite:
 
-- Docker Compose
+- Docker running (for MySQL integration tests)
 - Node.js 22 or newer
 
 ```sh
@@ -79,6 +79,17 @@ npm ci
 npm run typecheck
 npm test
 ```
+
+```text
+tests/
+  unit/          Service logic and storage pricing, with mocked repositories
+  api/           HTTP validation and responses, with a mocked service
+  integration/   Storage, retrieval, events, and HTTP workflows against MySQL
+  helpers/       MySQL container setup and database fixtures
+```
+
+Run a group with `npm run test:unit`, `npm run test:api`, or `npm run test:integration`.
+Each integration test file uses its own disposable MySQL container, cleared between tests. No database configuration is needed.
 
 ## Demo Client
 
@@ -139,4 +150,4 @@ Storage fee calculation is kept separate to make pricing easier to test and upda
 
 ## AI assistance
 
-OpenAI Codex was used for a pre-submission code review and follow-up changes to service typing and clock use, test coverage and cleanup, documentation, and demo-client cleanup. The review used the challenge and recruiter notes, inspected the implementation, and ran the project checks. The submission author remains responsible for understanding and verifying the result.
+OpenAI Codex was used for a pre-submission code review and follow-up changes to service typing and clock use, test organization and coverage, documentation, and demo-client cleanup. The review used the challenge and recruiter notes, inspected the implementation, and ran the project checks. The submission author remains responsible for understanding and verifying the result.

@@ -21,6 +21,6 @@ Keep business rules out of controllers and SQL out of services. Add a new abstra
 
 ## Validation and submission
 
-Use Node 22 or newer. Run `npm run typecheck` and `npm test` after code changes. The repository tests use a disposable MySQL Testcontainer, so the full suite needs Docker. The separate opt-in integration suite requires `RUN_MYSQL_INTEGRATION=1` and a dedicated `TEST_DB_NAME` beginning with `splms_test`; never reset the development database to run tests.
+Use Node 22 or newer. Run `npm run typecheck` and `npm test` after code changes. Tests are grouped under `tests/unit`, `tests/api`, and `tests/integration`. Each integration test file uses a disposable MySQL Testcontainer through `tests/helpers/mysql.ts`, so the full suite needs Docker. Never reset the development database to run tests.
 
 Keep the [README](README.md) aligned with actual routes, setup, trade-offs, and test results. It contains the project's AI assistance disclosure; update that disclosure when AI-assisted work changes the submitted solution. Review and verify generated changes before submission.
