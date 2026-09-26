@@ -6,6 +6,7 @@ const databaseName = process.env.TEST_DB_NAME;
 describe.skipIf(!enabled)("MySQL retrieval integration", () => {
   let sequelize: typeof import("../src/configs/database.ts").sequelize;
   let Locker: typeof import("../src/models/locker.model.ts").Locker;
+  let LockerEvent: typeof import("../src/models/locker-event.model.ts").LockerEvent;
   let LockerService: typeof import("../src/services/locker.service.ts").LockerService;
   let LockerRepository: typeof import("../src/repositories/locker.repository.ts").LockerRepository;
   const createdIds: number[] = [];
@@ -22,6 +23,7 @@ describe.skipIf(!enabled)("MySQL retrieval integration", () => {
 
     ({ sequelize } = await import("../src/configs/database.ts"));
     ({ Locker } = await import("../src/models/locker.model.ts"));
+    ({ LockerEvent } = await import("../src/models/locker-event.model.ts"));
     ({ LockerService } = await import("../src/services/locker.service.ts"));
     ({ LockerRepository } = await import("../src/repositories/locker.repository.ts"));
     await sequelize.authenticate();
@@ -29,8 +31,14 @@ describe.skipIf(!enabled)("MySQL retrieval integration", () => {
   });
 
   afterAll(async () => {
-    if (Locker && createdIds.length) await Locker.destroy({ where: { id: createdIds } });
-    if (sequelize) await sequelize.close();
+    try {
+      if (Locker && LockerEvent && createdIds.length) {
+        await LockerEvent.destroy({ where: { lockerId: createdIds } });
+        await Locker.destroy({ where: { id: createdIds } });
+      }
+    } finally {
+      if (sequelize) await sequelize.close();
+    }
   });
 
   const createAssignment = async (occupiedAt: Date) => {

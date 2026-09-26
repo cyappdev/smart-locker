@@ -38,5 +38,3 @@ export const createLockerRouter = (
 
   return router;
 };
-
-export const router = createLockerRouter();

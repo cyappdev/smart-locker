@@ -21,7 +21,7 @@
 
 | Fields       | Rule                                                      |
 | ------------ | --------------------------------------------------------- |
-| `identifier` | Unique physical Unique label such as `A1`, user facing id |
+| `identifier` | Unique physical label such as `A1`, used for retrieval |
 | `size`       | Must be `small`, `medium`, or `large`.                    |
 
 `201 Created`
@@ -77,7 +77,7 @@
 }
 ```
 
-> For this demo, pickup codes are included in the list to simplify debugging and testing.
+> For this demo, pickup codes are included in the list to simplify debugging and testing. Codes are unique among current assignments and may be reused after retrieval.
 
 ### Possible errors
 
@@ -130,7 +130,7 @@
 | 404         | `LOCKER_NOT_FOUND`      | The locker does not exist. |
 | 500         | `INTERNAL_SERVER_ERROR` | An unexpected server error occurs. |
 
-## Delivery agent store package
+## Store a package
 
 `POST /api/lockers/store`
 
@@ -167,7 +167,7 @@
 | 500         | `PICKUP_CODE_GENERATION_FAILED` | A unique pickup code cannot be generated after retries. |
 | 500         | `INTERNAL_SERVER_ERROR`         | An unexpected server error occurs. |
 
-## Customer Retrieve package
+## Retrieve a package
 
 `POST /api/lockers/retrieve`
 
@@ -235,7 +235,7 @@ Request bodies reject unknown fields. Errors include a `code` and `message`. Val
 ```json
 {
   "code": "VALIDATION_ERROR",
-  "message": "Request valÏidation failed.",
+  "message": "Request validation failed.",
   "details": [
     {
       "field": "pickupCode",

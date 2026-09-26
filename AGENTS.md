@@ -4,9 +4,8 @@ This repository is a Smart Package Locker Management System coding challenge. St
 
 ## Project references
 
-- [Challenge requirements](docs/requirement.md): the requested behavior and four levels of scope. Level 4, concurrent storage, is optional.
 - [API reference](docs/api.md): request and response contracts, validation, and storage charge behavior. The running app mounts locker routes at `/api/lockers`.
-- [Documentation index](docs/index.md): architecture, data model, and stated limitations.
+- [README](README.md): architecture and stated limitations; [data model](docs/data-model.md): database columns.
 
 If a proposed change conflicts with these documents, check the challenge requirement first and make the chosen behavior explicit in the API reference and tests.
 

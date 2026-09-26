@@ -13,8 +13,6 @@ import type {
   StorePackageInput,
 } from "../schemas/locker.schema.ts";
 import type { SizeCategory } from "../types/size-category.ts";
-import type { LockerEventType } from "../types/locker-event-type.ts";
-import type { LockerStatus } from "../types/locker-status.ts";
 import {
   TieredStorageFeePolicy,
   type StorageFeePolicy,
@@ -36,55 +34,12 @@ export interface RetrievePackageResult {
   chargesInCents: number;
 }
 
-export interface ListLockerEventsResult {
-  data: Array<{
-    id: number;
-    eventType: LockerEventType;
-    lockerStatus: LockerStatus;
-    packageIdentifier: string | null;
-    chargesInCents: number | null;
-    createdAt: string;
-  }>;
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
+export type LockerServicePort = Pick<
+  LockerService,
+  "createLocker" | "listLockers" | "listLockerEvents" | "storePackage" | "retrievePackage"
+>;
 
-export interface LockerServicePort {
-  createLocker(
-    input: CreateLockerInput,
-  ): ReturnType<LockerRepositoryPort["create"]>;
-  listLockers(input: ListLockersInput): Promise<{
-    data: Array<{
-      id: number;
-      identifier: string;
-      size: SizeCategory;
-      status: LockerStatus;
-      packageIdentifier: string | null;
-      pickupCode: string | null;
-    }>;
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
-  }>;
-  listLockerEvents(input: ListLockerEventsInput): Promise<ListLockerEventsResult>;
-  storePackage(input: StorePackageInput): Promise<{
-    lockerId: number;
-    identifier: string;
-    packageIdentifier: string;
-    pickupCode: string;
-    status: "occupied";
-  }>;
-  retrievePackage(input: RetrievePackageInput): Promise<RetrievePackageResult>;
-}
-
-export class LockerService implements LockerServicePort {
+export class LockerService {
   private readonly repository: LockerRepositoryPort;
   private readonly generatePickupCode: () => string;
   private readonly now: () => Date;
@@ -128,7 +83,7 @@ export class LockerService implements LockerServicePort {
     };
   }
 
-  async listLockerEvents(input: ListLockerEventsInput): Promise<ListLockerEventsResult> {
+  async listLockerEvents(input: ListLockerEventsInput) {
     const result = await this.repository.listEvents(input);
     if (!result) {
       throw new AppError(404, "LOCKER_NOT_FOUND", "Locker not found.");
@@ -171,7 +126,7 @@ export class LockerService implements LockerServicePort {
             locker,
             input.packageIdentifier,
             pickupCode,
-            new Date(),
+            this.now(),
           );
 
           if (!updatedLocker) {
@@ -201,7 +156,7 @@ export class LockerService implements LockerServicePort {
     }
   }
 
-  async retrievePackage(input: RetrievePackageInput) {
+  async retrievePackage(input: RetrievePackageInput): Promise<RetrievePackageResult> {
     const result = await this.repository.retrievePackage(
       input.lockerIdentifier,
       input.pickupCode,

@@ -1,10 +1,9 @@
 import { UniqueConstraintError } from "sequelize";
-import { assert, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Locker } from "../../src/models/locker.model.ts";
 import type { LockerEvent } from "../../src/models/locker-event.model.ts";
 import type { LockerRepositoryPort } from "../../src/repositories/locker.repository.ts";
 import { LockerService } from "../../src/services/locker.service.ts";
-import { AppError } from "../../src/errors/app-error.ts";
 
 const makeLocker = (overrides: Partial<Locker> = {}) =>
   ({
@@ -61,45 +60,46 @@ describe("LockerService", () => {
     );
   });
 
-  it.each([
-    [['small', 'medium'], ['small', 'medium', 'large'], 1],
-    [['small', 'medium', 'large'], ['small', 'medium', 'large'], 1],
-    [['small'], ['small', 'medium', 'large'], 1],
-    [['small', 'small', 'small'], ['small', 'medium', 'large'], 1]
-  ])("returns not-found to concurrent callers when one locker is offered", async (packages, lockers, expectedStoredCount) => {
-    const availableLocker = makeLocker();
-    let available = true;
+  it("searches again when another request claims the selected locker", async () => {
+    const firstLocker = makeLocker();
+    const nextLocker = makeLocker({ id: 2, identifier: "A2" });
     const repository = makeRepository({
-      findAvailable: vi.fn(async () => {
-        if (!available) return null;
-        available = false;
-        return availableLocker;
-      }),
+      findAvailable: vi.fn<LockerRepositoryPort["findAvailable"]>()
+        .mockResolvedValueOnce(firstLocker)
+        .mockResolvedValueOnce(nextLocker),
+    });
+    vi.mocked(repository.assignPackage).mockResolvedValueOnce(null);
+    const service = new LockerService(repository, () => "000001");
+
+    const result = await service.storePackage({ size: "small", packageIdentifier: "ORDER-1" });
+
+    expect(result.lockerId).toBe(nextLocker.id);
+    expect(repository.findAvailable).toHaveBeenCalledTimes(2);
+    expect(repository.assignPackage).toHaveBeenNthCalledWith(
+      2, nextLocker, "ORDER-1", "000001", expect.any(Date),
+    );
+  });
+
+  it("returns not-found when the last available locker is claimed before assignment", async () => {
+    const repository = makeRepository({
+      findAvailable: vi.fn<LockerRepositoryPort["findAvailable"]>()
+        .mockResolvedValueOnce(makeLocker())
+        .mockResolvedValueOnce(null),
+      assignPackage: vi.fn(async () => null),
     });
     const service = new LockerService(repository, () => "000001");
 
-    const concurrentRequests: Promise<boolean>[] = packages.map((packageIdentifier) =>
-      (async (): Promise<boolean> => {
-        try {
-          await service.storePackage({ size: "small", packageIdentifier });
-          return true;
-        } catch (error) {
-          if (error instanceof AppError && error.code === "LOCKER_NOT_FOUND") {
-            return false;
-          }
-          assert.fail(`Unexpected error type: ${error}`);
-        }
-      })(),
-    );
-    const results = await Promise.all(concurrentRequests);
-    assert.equal(results.filter(Boolean).length, expectedStoredCount, "Only one request should succeed");
+    await expect(service.storePackage({ size: "small", packageIdentifier: "ORDER-1" }))
+      .rejects.toMatchObject({ code: "LOCKER_NOT_FOUND" });
+    expect(repository.assignPackage).toHaveBeenCalledTimes(1);
   });
 
   it("returns the stored assignment without exposing unrelated fields", async () => {
     const repository = makeRepository({
       findAvailable: vi.fn(async () => makeLocker()),
     });
-    const service = new LockerService(repository, () => "048291");
+    const occupiedAt = new Date("2024-06-01T12:00:00.000Z");
+    const service = new LockerService(repository, () => "048291", () => occupiedAt);
 
     await expect(
       service.storePackage({ size: "small", packageIdentifier: "ORDER-123" }),
@@ -110,6 +110,9 @@ describe("LockerService", () => {
       pickupCode: "048291",
       status: "occupied",
     });
+    expect(repository.assignPackage).toHaveBeenCalledWith(
+      expect.anything(), "ORDER-123", "048291", occupiedAt,
+    );
   });
 
   it("returns LOCKER_NOT_FOUND when no suitable locker exists", async () => {
@@ -168,7 +171,6 @@ describe("LockerService", () => {
       data: [{ id: 1, identifier: "A1", size: "small", status: "available", pickupCode: "secret", packageIdentifier: "ORDER-1" }],
       pagination: { page: 2, limit: 10, total: 21, totalPages: 3 },
     });
-    expect(result.data[0].pickupCode).toBe("secret");
   });
 
   it("formats locker events and pagination without exposing locker internals", async () => {

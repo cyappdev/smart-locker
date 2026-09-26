@@ -2,7 +2,7 @@ import { Button, Container, Stack, Typography } from "@mui/material"
 import { ConsoleContainer } from "./components/ConsoleContainer"
 import { useState } from "react"
 import { StorePackageDialog } from "./components/StorePackageDialog"
-import { RetrievePackageDialog } from "./components/RetrievePacakgeDialog"
+import { RetrievePackageDialog } from "./components/RetrievePackageDialog"
 
 export const LockerPage = () => {
     const [storeOpen, setStoreOpen] = useState(false);

@@ -7,7 +7,13 @@ import type { LockerServicePort } from "../src/services/locker.service.ts";
 
 const createTestApp = () => {
   const listLockerEvents = vi.fn<LockerServicePort["listLockerEvents"]>();
-  const service = { listLockerEvents } as unknown as LockerServicePort;
+  const service: LockerServicePort = {
+    createLocker: vi.fn(),
+    listLockers: vi.fn(),
+    listLockerEvents,
+    storePackage: vi.fn(),
+    retrievePackage: vi.fn(),
+  };
   return { app: createApp(new LockerController(service)), listLockerEvents };
 };
 

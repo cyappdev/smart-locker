@@ -17,4 +17,17 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run typecheck
+
       - run: npm test
+
+      - run: npm run build
+
+      - run: npm ci
+        working-directory: examples/demo-client
+
+      - run: npm run build
+        working-directory: examples/demo-client
+
+      - run: npm run lint
+        working-directory: examples/demo-client

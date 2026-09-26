@@ -14,7 +14,7 @@ describe("TieredStorageFeePolicy", () => {
     [6 * 24 * 60 * 60 * 1000, 700],
     [10 * 24 * 60 * 60 * 1000, 1500],
     [11 * 24 * 60 * 60 * 1000, 1800],
-  ])("charges %i cents of elapsed time as %i cents", (elapsed, charge) => {
+  ])("charges %i milliseconds of storage as %i cents", (elapsed, charge) => {
     expect(policy.calculate(occupiedAt, new Date(occupiedAt.getTime() + elapsed))).toBe(charge);
   });
 });

@@ -1,8 +1,9 @@
 import { MySqlContainer, type StartedMySqlContainer } from "@testcontainers/mysql";
 import { UniqueConstraintError } from "sequelize";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import request from "supertest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-describe("LockerRepository storage and retrieval", () => {
+describe("Locker storage and retrieval (MySQL)", () => {
   let container: StartedMySqlContainer | undefined;
   let sequelize: typeof import("../../src/configs/database.ts").sequelize;
   let Locker: typeof import("../../src/models/locker.model.ts").Locker;
@@ -29,6 +30,13 @@ describe("LockerRepository storage and retrieval", () => {
     ({ LockerService } = await import("../../src/services/locker.service.ts"));
     await sequelize.sync();
   }, 120_000);
+
+  afterEach(async () => {
+    if (!sequelize) return;
+    await LockerEvent.destroy({ where: {} });
+    await Locker.destroy({ where: {} });
+    vi.restoreAllMocks();
+  });
 
   afterAll(async () => {
     try {
@@ -62,67 +70,53 @@ describe("LockerRepository storage and retrieval", () => {
 
   it("persists a locker event with the requested columns", async () => {
     const locker = await createAvailableLocker("small");
-    try {
-      const event = await LockerEvent.create({
-        lockerId: locker.id,
-        eventType: "status_changed",
-        lockerStatus: "available",
-        packageIdentifier: null,
-        chargesInCents: null,
-      });
+    const event = await LockerEvent.create({
+      lockerId: locker.id,
+      eventType: "status_changed",
+      lockerStatus: "available",
+      packageIdentifier: null,
+      chargesInCents: null,
+    });
 
-      expect(event.createdAt).toBeInstanceOf(Date);
-      expect(await LockerEvent.findByPk(event.id)).toMatchObject({
-        lockerId: locker.id,
-        eventType: "status_changed",
-        lockerStatus: "available",
-        packageIdentifier: null,
-        chargesInCents: null,
-      });
-      const columns = Object.keys(await sequelize.getQueryInterface().describeTable("locker_events"));
-      expect(columns).toEqual(expect.arrayContaining([
-        "id", "locker_id", "event_type", "locker_status",
-        "package_identifier", "charges_in_cents", "created_at",
-      ]));
-      expect(columns).not.toContain("updated_at");
-    } finally {
-      await LockerEvent.destroy({ where: { lockerId: locker.id } });
-      await locker.destroy();
-    }
+    expect(event.createdAt).toBeInstanceOf(Date);
+    expect(await LockerEvent.findByPk(event.id)).toMatchObject({
+      lockerId: locker.id,
+      eventType: "status_changed",
+      lockerStatus: "available",
+      packageIdentifier: null,
+      chargesInCents: null,
+    });
+    const columns = Object.keys(await sequelize.getQueryInterface().describeTable("locker_events"));
+    expect(columns).toEqual(expect.arrayContaining([
+      "id", "locker_id", "event_type", "locker_status",
+      "package_identifier", "charges_in_cents", "created_at",
+    ]));
+    expect(columns).not.toContain("updated_at");
   });
 
   it("lists only a locker's events newest first with pagination", async () => {
     const locker = await createAvailableLocker("small");
     const otherLocker = await createAvailableLocker("small");
-    try {
-      const events = [
-        await LockerEvent.create({ lockerId: locker.id, eventType: "package_stored", lockerStatus: "occupied", packageIdentifier: "ORDER-1", chargesInCents: null, createdAt: new Date("2024-06-01T00:00:00.000Z") }),
-        await LockerEvent.create({ lockerId: locker.id, eventType: "package_retrieved", lockerStatus: "available", packageIdentifier: "ORDER-1", chargesInCents: 100, createdAt: new Date("2024-06-02T00:00:00.000Z") }),
-        await LockerEvent.create({ lockerId: locker.id, eventType: "status_changed", lockerStatus: "available", packageIdentifier: null, chargesInCents: null, createdAt: new Date("2024-06-02T00:00:00.000Z") }),
-        await LockerEvent.create({ lockerId: otherLocker.id, eventType: "status_changed", lockerStatus: "available", packageIdentifier: null, chargesInCents: null, createdAt: new Date("2024-06-03T00:00:00.000Z") }),
-      ];
-      const repository = new LockerRepository();
+    const events = [
+      await LockerEvent.create({ lockerId: locker.id, eventType: "package_stored", lockerStatus: "occupied", packageIdentifier: "ORDER-1", chargesInCents: null, createdAt: new Date("2024-06-01T00:00:00.000Z") }),
+      await LockerEvent.create({ lockerId: locker.id, eventType: "package_retrieved", lockerStatus: "available", packageIdentifier: "ORDER-1", chargesInCents: 100, createdAt: new Date("2024-06-02T00:00:00.000Z") }),
+      await LockerEvent.create({ lockerId: locker.id, eventType: "status_changed", lockerStatus: "available", packageIdentifier: null, chargesInCents: null, createdAt: new Date("2024-06-02T00:00:00.000Z") }),
+      await LockerEvent.create({ lockerId: otherLocker.id, eventType: "status_changed", lockerStatus: "available", packageIdentifier: null, chargesInCents: null, createdAt: new Date("2024-06-03T00:00:00.000Z") }),
+    ];
+    const repository = new LockerRepository();
 
-      const firstPage = await repository.listEvents({ lockerId: locker.id, page: 1, limit: 1 });
-      expect(firstPage?.count).toBe(3);
-      expect(firstPage?.rows.map((event) => event.id)).toEqual([events[2].id]);
+    const firstPage = await repository.listEvents({ lockerId: locker.id, page: 1, limit: 1 });
+    expect(firstPage?.count).toBe(3);
+    expect(firstPage?.rows.map((event) => event.id)).toEqual([events[2].id]);
 
-      const secondPage = await repository.listEvents({ lockerId: locker.id, page: 2, limit: 1 });
-      expect(secondPage?.count).toBe(3);
-      expect(secondPage?.rows.map((event) => event.id)).toEqual([events[1].id]);
+    const secondPage = await repository.listEvents({ lockerId: locker.id, page: 2, limit: 1 });
+    expect(secondPage?.count).toBe(3);
+    expect(secondPage?.rows.map((event) => event.id)).toEqual([events[1].id]);
 
-      const emptyLocker = await createAvailableLocker("small");
-      try {
-        expect(await repository.listEvents({ lockerId: emptyLocker.id, page: 1, limit: 10 }))
-          .toMatchObject({ count: 0, rows: [] });
-      } finally {
-        await emptyLocker.destroy();
-      }
-      expect(await repository.listEvents({ lockerId: 999_999_999, page: 1, limit: 10 })).toBeNull();
-    } finally {
-      await LockerEvent.destroy({ where: { lockerId: [locker.id, otherLocker.id] } });
-      await Locker.destroy({ where: { id: [locker.id, otherLocker.id] } });
-    }
+    const emptyLocker = await createAvailableLocker("small");
+    expect(await repository.listEvents({ lockerId: emptyLocker.id, page: 1, limit: 10 }))
+      .toMatchObject({ count: 0, rows: [] });
+    expect(await repository.listEvents({ lockerId: 999_999_999, page: 1, limit: 10 })).toBeNull();
   });
 
   it("does not overwrite a locker selected before another assignment", async () => {
@@ -216,30 +210,26 @@ describe("LockerRepository storage and retrieval", () => {
 
   it("rolls back storage when its event cannot be written", async () => {
     const locker = await createAvailableLocker("small");
+    const hookName = "reject-storage-event";
+    LockerEvent.addHook("beforeCreate", hookName, () => {
+      throw new Error("event insert failed");
+    });
+
     try {
-      const hookName = "reject-storage-event";
-      LockerEvent.addHook("beforeCreate", hookName, () => {
-        throw new Error("event insert failed");
-      });
-
-      try {
-        await expect(new LockerRepository().assignPackage(locker, "ORDER-NEW", "303001", new Date()))
-          .rejects.toThrow("event insert failed");
-      } finally {
-        LockerEvent.removeHook("beforeCreate", hookName);
-      }
-
-      await locker.reload();
-      expect(locker).toMatchObject({
-        status: "available",
-        packageIdentifier: null,
-        pickupCode: null,
-        lastOccupiedAt: null,
-      });
-      expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(0);
+      await expect(new LockerRepository().assignPackage(locker, "ORDER-NEW", "303001", new Date()))
+        .rejects.toThrow("event insert failed");
     } finally {
-      await locker.destroy();
+      LockerEvent.removeHook("beforeCreate", hookName);
     }
+
+    await locker.reload();
+    expect(locker).toMatchObject({
+      status: "available",
+      packageIdentifier: null,
+      pickupCode: null,
+      lastOccupiedAt: null,
+    });
+    expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(0);
   });
 
   it("stores only as many packages as there are lockers under a burst of requests", async () => {
@@ -422,5 +412,68 @@ describe("LockerRepository storage and retrieval", () => {
         packageIdentifier: "ORDER-123",
         chargesInCents: 0,
       }]);
+  });
+
+  it("creates, lists, stores and retrieves a package through HTTP", async () => {
+    const { createApp } = await import("../../src/app.ts");
+    const app = createApp();
+    await request(app).post("/api/lockers").send({ identifier: "M1", size: "medium" }).expect(201);
+    const created = await request(app).post("/api/lockers").send({ identifier: "S1", size: "small" }).expect(201);
+    const duplicate = await request(app).post("/api/lockers").send({ identifier: "S1", size: "small" }).expect(409);
+    expect(duplicate.body.code).toBe("LOCKER_IDENTIFIER_EXISTS");
+
+    const stored = await request(app).post("/api/lockers/store")
+      .send({ packageIdentifier: "ORDER-HTTP", size: "small" }).expect(200);
+    expect(stored.body).toMatchObject({ lockerId: created.body.id, identifier: "S1", status: "occupied" });
+    expect(stored.body.pickupCode).toMatch(/^\d{6}$/);
+
+    const listed = await request(app).get("/api/lockers?status=occupied").expect(200);
+    expect(listed.body.data).toHaveLength(1);
+    expect(listed.body.data[0]).toMatchObject({ identifier: "S1", packageIdentifier: "ORDER-HTTP" });
+
+    const input = { lockerIdentifier: "S1", pickupCode: stored.body.pickupCode };
+    const retrieved = await request(app).post("/api/lockers/retrieve").send(input).expect(200);
+    expect(retrieved.body).toMatchObject({ status: "retrieved", chargesInCents: 0, packageIdentifier: "ORDER-HTTP" });
+    await request(app).post("/api/lockers/retrieve").send(input).expect(404);
+
+    const events = await request(app).get(`/api/lockers/${created.body.id}/events`).expect(200);
+    expect(events.body.data.map((event: { eventType: string }) => event.eventType))
+      .toEqual(["package_retrieved", "package_stored"]);
+  });
+
+  it("keeps a charged package occupied until HTTP confirmation", async () => {
+    const { createApp } = await import("../../src/app.ts");
+    const { LockerController } = await import("../../src/controllers/locker.controller.ts");
+    const locker = await createAssignment();
+    await locker.update({ pickupCode: "654321" });
+    const service = new LockerService(new LockerRepository(), undefined, () => new Date("2024-06-02T12:00:00.000Z"));
+    const app = createApp(new LockerController(service));
+    const input = { lockerIdentifier: locker.identifier, pickupCode: locker.pickupCode };
+
+    const preview = await request(app).post("/api/lockers/retrieve").send(input).expect(200);
+    expect(preview.body).toMatchObject({ status: "charges_required", chargesInCents: 100 });
+    await locker.reload();
+    expect(locker.status).toBe("occupied");
+    expect(await LockerEvent.count()).toBe(0);
+
+    const confirmed = await request(app).post("/api/lockers/retrieve")
+      .send({ ...input, confirmCharges: true }).expect(200);
+    expect(confirmed.body).toMatchObject({ status: "retrieved", chargesInCents: 100 });
+    await locker.reload();
+    expect(locker.status).toBe("available");
+    expect(await LockerEvent.count()).toBe(1);
+  });
+
+  it.each([
+    ["/api/lockers", { identifier: "", size: "small" }],
+    ["/api/lockers/store", { packageIdentifier: "ORDER-1", size: "huge" }],
+    ["/api/lockers/store", { packageIdentifier: "ORDER-1", size: "small", pickupCode: "123456" }],
+    ["/api/lockers/retrieve", { lockerIdentifier: "A1", pickupCode: "123456", confirmCharges: "true" }],
+  ])("rejects invalid input at %s before changing storage", async (path, body) => {
+    const { createApp } = await import("../../src/app.ts");
+    const response = await request(createApp()).post(path).send(body).expect(400);
+    expect(response.body.code).toBe("VALIDATION_ERROR");
+    expect(await Locker.count()).toBe(0);
+    expect(await LockerEvent.count()).toBe(0);
   });
 });
