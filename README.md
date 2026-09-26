@@ -91,6 +91,8 @@ tests/
 Run a group with `npm run test:unit`, `npm run test:api`, or `npm run test:integration`.
 Each integration test file uses its own disposable MySQL container, cleared between tests. No database configuration is needed.
 
+Run `npm run format` to format the project, or `npm run format:check` to check formatting. The root Prettier config also applies to the demo client.
+
 ## Demo Client
 
 The [React demo client](examples/demo-client/) lets you test the API in a browser at `http://localhost:3001`.
@@ -150,4 +152,4 @@ Storage fee calculation is kept separate to make pricing easier to test and upda
 
 ## AI assistance
 
-OpenAI Codex was used for a pre-submission code review and follow-up changes to service typing and clock use, test organization and coverage, documentation, and demo-client cleanup. The review used the challenge and recruiter notes, inspected the implementation, and ran the project checks. The submission author remains responsible for understanding and verifying the result.
+OpenAI Codex was used for a pre-submission code review and follow-up changes to service typing and clock use, test organization and coverage, formatting setup, documentation, and demo-client cleanup. The review used the challenge and recruiter notes, inspected the implementation, and ran the project checks. The submission author remains responsible for understanding and verifying the result.
