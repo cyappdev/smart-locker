@@ -6,8 +6,12 @@ import {
   type InferCreationAttributes,
 } from "sequelize";
 import { sequelize } from "../configs/database.ts";
-import { LOCKER_EVENT_TYPES, type LockerEventType } from "../types/locker-event-type.ts";
-import { LOCKER_STATUSES, type LockerStatus } from "../types/locker-status.ts";
+import {
+  LOCKER_EVENT_TYPES,
+  LOCKER_STATUSES,
+  type LockerEventType,
+  type LockerStatus,
+} from "../types/locker.ts";
 import { Locker } from "./locker.model.ts";
 
 export class LockerEvent extends Model<

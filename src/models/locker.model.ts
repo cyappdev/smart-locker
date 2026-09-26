@@ -6,8 +6,12 @@ import {
   type InferCreationAttributes,
 } from "sequelize";
 import { sequelize } from "../configs/database.ts";
-import { LOCKER_STATUSES, type LockerStatus } from "../types/locker-status.ts";
-import { SIZE_CATEGORIES, type SizeCategory } from "../types/size-category.ts";
+import {
+  LOCKER_STATUSES,
+  SIZE_CATEGORIES,
+  type LockerStatus,
+  type SizeCategory,
+} from "../types/locker.ts";
 
 export class Locker extends Model<
   InferAttributes<Locker>,

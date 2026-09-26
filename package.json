@@ -2,18 +2,16 @@
   "name": "smart-package-locker",
   "version": "1.0.0",
   "description": "Smart Package Locker Management System",
-  "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "node --env-file=.env --import=tsx --watch src/index.ts",
+    "dev": "node --env-file=.env --import=tsx --watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
-    "test:api": "vitest run tests/api",
     "test:integration": "vitest run tests/integration",
+    "test:e2e": "vitest run tests/e2e",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --write ."
   },
   "author": "cylimyuan@gmail.com",
   "license": "ISC",

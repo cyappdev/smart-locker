@@ -21,6 +21,6 @@ Keep business rules out of controllers and SQL out of services. Add a new abstra
 
 ## Validation and submission
 
-Use Node 22 or newer. Run `npm run typecheck` and `npm test` after code changes. Tests are grouped under `tests/unit`, `tests/api`, and `tests/integration`. Each integration test file uses a disposable MySQL Testcontainer through `tests/helpers/mysql.ts`, so the full suite needs Docker. Never reset the development database to run tests.
+Use Node 22 or newer. Run `npm run typecheck` and `npm test` after code changes. Tests are grouped under `tests/unit`, `tests/integration`, and `tests/e2e`. Each integration and e2e test file uses a disposable MySQL Testcontainer through `tests/helpers/mysql.ts`, so the full suite needs Docker. Never reset the development database to run tests.
 
 Keep the [README](README.md) aligned with actual routes, setup, trade-offs, and test results. It contains the project's AI assistance disclosure; update that disclosure when AI-assisted work changes the submitted solution. Review and verify generated changes before submission.

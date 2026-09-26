@@ -1,55 +1,50 @@
 import type { RequestHandler } from "express";
 import type {
-  CreateLockerInput,
-  ListLockerEventsInput,
-  ListLockersInput,
-  RetrievePackageInput,
-  StorePackageInput,
+  CreateLockerBody,
+  ListLockerEventsParams,
+  ListLockerEventsQuery,
+  ListLockersQuery,
+  RetrievePackageBody,
+  StorePackageBody,
 } from "../schemas/locker.schema.ts";
-import {
-  lockerService,
-  type LockerServicePort,
-} from "../services/locker.service.ts";
+import type { LockerService } from "../services/locker.service.ts";
+import type {
+  CreateLockerResponse,
+  ListLockerEventsResponse,
+  ListLockersResponse,
+  RetrievePackageResponse,
+  StorePackageResponse,
+} from "../types/locker-response.ts";
 
 export class LockerController {
-  private readonly service: LockerServicePort;
+  private readonly service: LockerService;
 
-  constructor(service: LockerServicePort = lockerService) {
+  constructor(service: LockerService) {
     this.service = service;
   }
 
-  create: RequestHandler = async (_req, res) => {
-    const input = res.locals.validatedBody as CreateLockerInput;
-    const locker = await this.service.createLocker(input);
-
-    res.status(201).json({
-      id: locker.id,
-      identifier: locker.identifier,
-      size: locker.size,
-      status: locker.status,
-    });
+  create: RequestHandler<{}, CreateLockerResponse, CreateLockerBody> = async (req, res) => {
+    res.status(201).json(await this.service.createLocker(req.body));
   };
 
-  list: RequestHandler = async (_req, res) => {
-    const input = res.locals.validatedQuery as ListLockersInput;
-    res.json(await this.service.listLockers(input));
+  list: RequestHandler<{}, ListLockersResponse, unknown, ListLockersQuery> = async (req, res) => {
+    res.json(await this.service.listLockers(req.query));
   };
 
-  listEvents: RequestHandler = async (_req, res) => {
-    const params = res.locals.validatedParams as Pick<ListLockerEventsInput, "lockerId">;
-    const query = res.locals.validatedQuery as Omit<ListLockerEventsInput, "lockerId">;
-    res.json(await this.service.listLockerEvents({ ...params, ...query }));
+  listEvents: RequestHandler<
+    ListLockerEventsParams,
+    ListLockerEventsResponse,
+    unknown,
+    ListLockerEventsQuery
+  > = async (req, res) => {
+    res.json(await this.service.listLockerEvents({ ...req.params, ...req.query }));
   };
 
-  store: RequestHandler = async (_req, res) => {
-    const input = res.locals.validatedBody as StorePackageInput;
-    res.json(await this.service.storePackage(input));
+  store: RequestHandler<{}, StorePackageResponse, StorePackageBody> = async (req, res) => {
+    res.json(await this.service.storePackage(req.body));
   };
 
-  retrieve: RequestHandler = async (_req, res) => {
-    const input = res.locals.validatedBody as RetrievePackageInput;
-    res.json(await this.service.retrievePackage(input));
+  retrieve: RequestHandler<{}, RetrievePackageResponse, RetrievePackageBody> = async (req, res) => {
+    res.json(await this.service.retrievePackage(req.body));
   };
 }
-
-export const lockerController = new LockerController();

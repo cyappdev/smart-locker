@@ -9,13 +9,21 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
   demo-client:
     build: ./examples/demo-client
     ports:
       - "3001:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
   mysql:
     image: mysql:8.4
     ports:
@@ -23,6 +31,13 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: splms
+    healthcheck:
+      # TCP ping: the temporary server used during first-run init only listens on the socket.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     volumes:
       - splms_db:/var/lib/mysql
 

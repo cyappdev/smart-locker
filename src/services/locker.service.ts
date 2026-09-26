@@ -1,18 +1,22 @@
 import { randomInt } from "node:crypto";
 import { UniqueConstraintError } from "sequelize";
 import { AppError } from "../errors/app-error.ts";
-import {
-  lockerRepository,
-  type LockerRepositoryPort,
-} from "../repositories/locker.repository.ts";
+import type { LockerRepositoryPort } from "../repositories/locker.repository.ts";
 import type {
-  CreateLockerInput,
+  CreateLockerBody,
   ListLockerEventsInput,
-  ListLockersInput,
-  RetrievePackageInput,
-  StorePackageInput,
+  ListLockersQuery,
+  RetrievePackageBody,
+  StorePackageBody,
 } from "../schemas/locker.schema.ts";
-import type { SizeCategory } from "../types/size-category.ts";
+import type { SizeCategory } from "../types/locker.ts";
+import type {
+  CreateLockerResponse,
+  ListLockerEventsResponse,
+  ListLockersResponse,
+  RetrievePackageResponse,
+  StorePackageResponse,
+} from "../types/locker-response.ts";
 import {
   TieredStorageFeePolicy,
   type StorageFeePolicy,
@@ -26,19 +30,6 @@ const ELIGIBLE_LOCKER_SIZES: Record<SizeCategory, readonly SizeCategory[]> = {
 
 const PICKUP_CODE_ATTEMPTS = 5;
 
-export interface RetrievePackageResult {
-  status: "retrieved" | "charges_required";
-  packageIdentifier: string;
-  occupiedAt: string;
-  calculatedAt: string;
-  chargesInCents: number;
-}
-
-export type LockerServicePort = Pick<
-  LockerService,
-  "createLocker" | "listLockers" | "listLockerEvents" | "storePackage" | "retrievePackage"
->;
-
 export class LockerService {
   private readonly repository: LockerRepositoryPort;
   private readonly generatePickupCode: () => string;
@@ -46,7 +37,7 @@ export class LockerService {
   private readonly storageFeePolicy: StorageFeePolicy;
 
   constructor(
-    repository: LockerRepositoryPort = lockerRepository,
+    repository: LockerRepositoryPort,
     generatePickupCode: () => string = () =>
       randomInt(0, 1_000_000).toString().padStart(6, "0"),
     now: () => Date = () => new Date(),
@@ -58,11 +49,12 @@ export class LockerService {
     this.storageFeePolicy = storageFeePolicy;
   }
 
-  createLocker(input: CreateLockerInput) {
-    return this.repository.create(input);
+  async createLocker(input: CreateLockerBody): Promise<CreateLockerResponse> {
+    const { id, identifier, size, status } = await this.repository.create(input);
+    return { id, identifier, size, status };
   }
 
-  async listLockers(input: ListLockersInput) {
+  async listLockers(input: ListLockersQuery): Promise<ListLockersResponse> {
     const { rows, count } = await this.repository.list(input);
 
     return {
@@ -83,7 +75,7 @@ export class LockerService {
     };
   }
 
-  async listLockerEvents(input: ListLockerEventsInput) {
+  async listLockerEvents(input: ListLockerEventsInput): Promise<ListLockerEventsResponse> {
     const result = await this.repository.listEvents(input);
     if (!result) {
       throw new AppError(404, "LOCKER_NOT_FOUND", "Locker not found.");
@@ -107,17 +99,18 @@ export class LockerService {
     };
   }
 
-  async storePackage(input: StorePackageInput) {
-    while (true) {
+  async storePackage(input: StorePackageBody): Promise<StorePackageResponse> {
+    let claimedByAnotherRequest: boolean;
+
+    do {
       const locker = await this.repository.findAvailable(
         ELIGIBLE_LOCKER_SIZES[input.size],
       );
-
       if (!locker) {
         throw new AppError(404, "LOCKER_NOT_FOUND", "No suitable locker found.");
       }
 
-      let claimedByAnotherRequest = false;
+      claimedByAnotherRequest = false;
       for (let attempt = 0; attempt < PICKUP_CODE_ATTEMPTS; attempt += 1) {
         const pickupCode = this.generatePickupCode();
 
@@ -139,24 +132,22 @@ export class LockerService {
             identifier: updatedLocker.identifier,
             packageIdentifier: updatedLocker.packageIdentifier!,
             pickupCode: updatedLocker.pickupCode!,
-            status: "occupied" as const,
+            status: "occupied",
           };
         } catch (error) {
           if (!(error instanceof UniqueConstraintError)) throw error;
         }
       }
+    } while (claimedByAnotherRequest);
 
-      if (!claimedByAnotherRequest) {
-        throw new AppError(
-          500,
-          "PICKUP_CODE_GENERATION_FAILED",
-          "A unique pickup code could not be generated.",
-        );
-      }
-    }
+    throw new AppError(
+      500,
+      "PICKUP_CODE_GENERATION_FAILED",
+      "A unique pickup code could not be generated.",
+    );
   }
 
-  async retrievePackage(input: RetrievePackageInput): Promise<RetrievePackageResult> {
+  async retrievePackage(input: RetrievePackageBody): Promise<RetrievePackageResponse> {
     const result = await this.repository.retrievePackage(
       input.lockerIdentifier,
       input.pickupCode,
@@ -193,5 +184,3 @@ export class LockerService {
     return result;
   }
 }
-
-export const lockerService = new LockerService();

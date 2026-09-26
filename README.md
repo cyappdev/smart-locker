@@ -32,13 +32,14 @@ flowchart LR
 
 ```text
 src/
+  composition/     Builds repositories, services, controllers, and routers
   routes/          HTTP endpoints
   schemas/         Request validation
   controllers/     HTTP request and response handling
   services/        Locker workflows and storage pricing
   repositories/    Database queries and transactions
   models/          Database Models
-tests/             Unit, API, and MySQL integration tests
+tests/             Unit, MySQL integration, and e2e tests
 examples/
   demo-client/     React demo client
 docs/             API reference, data model, and specifications
@@ -83,13 +84,13 @@ npm test
 ```text
 tests/
   unit/          Service logic and storage pricing, with mocked repositories
-  api/           HTTP validation and responses, with a mocked service
-  integration/   Storage, retrieval, events, and HTTP workflows against MySQL
+  integration/   Repository and service behavior against MySQL: storage, retrieval, events, concurrency
+  e2e/           HTTP workflows, validation, and error responses through the real app against MySQL
   helpers/       MySQL container setup and database fixtures
 ```
 
-Run a group with `npm run test:unit`, `npm run test:api`, or `npm run test:integration`.
-Each integration test file uses its own disposable MySQL container, cleared between tests. No database configuration is needed.
+Run a group with `npm run test:unit`, `npm run test:integration`, or `npm run test:e2e`.
+Each integration and e2e test file uses its own disposable MySQL container, cleared between tests. No database configuration is needed.
 
 Run `npm run format` to format the project, or `npm run format:check` to check formatting. The root Prettier config also applies to the demo client.
 
@@ -152,4 +153,4 @@ Storage fee calculation is kept separate to make pricing easier to test and upda
 
 ## AI assistance
 
-OpenAI Codex was used for a pre-submission code review and follow-up changes to service typing and clock use, test organization and coverage, formatting setup, documentation, and demo-client cleanup. The review used the challenge and recruiter notes, inspected the implementation, and ran the project checks. The submission author remains responsible for understanding and verifying the result.
+OpenAI Codex and Claude Code were used for code review, refactoring, test coverage, and documentation. I reviewed, tested, and verified every change and can explain each design decision.

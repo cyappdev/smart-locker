@@ -3,17 +3,20 @@ import { sequelize } from "../configs/database.ts";
 import { LockerEvent } from "../models/locker-event.model.ts";
 import { Locker } from "../models/locker.model.ts";
 import type {
-  CreateLockerInput,
+  CreateLockerBody,
   ListLockerEventsInput,
-  ListLockersInput,
+  ListLockersQuery,
 } from "../schemas/locker.schema.ts";
-import type { SizeCategory } from "../types/size-category.ts";
+import type { SizeCategory } from "../types/locker.ts";
 
 export interface LockerRepositoryPort {
-  create(input: CreateLockerInput): Promise<Locker>;
-  list(input: ListLockersInput): Promise<{ rows: Locker[]; count: number }>;
+  create(input: CreateLockerBody): Promise<Locker>;
+  list(input: ListLockersQuery): Promise<{ rows: Locker[]; count: number }>;
   listEvents(input: ListLockerEventsInput): Promise<{ rows: LockerEvent[]; count: number } | null>;
   findAvailable(sizes: readonly SizeCategory[]): Promise<Locker | null>;
+  /**
+   * @returns The assigned locker, or null if another request claimed it first.
+   */
   assignPackage(
     locker: Locker,
     packageIdentifier: string,
@@ -39,7 +42,7 @@ export interface RetrievalDecision<T> {
 }
 
 export class LockerRepository implements LockerRepositoryPort {
-  create(input: CreateLockerInput) {
+  create(input: CreateLockerBody) {
     return Locker.create({
       identifier: input.identifier,
       size: input.size,
@@ -49,7 +52,7 @@ export class LockerRepository implements LockerRepositoryPort {
     });
   }
 
-  list(input: ListLockersInput) {
+  list(input: ListLockersQuery) {
     const where: WhereOptions = {};
     if (input.status) where.status = input.status;
     if (input.search) where.identifier = { [Op.like]: `%${input.search}%` };
@@ -183,5 +186,3 @@ export class LockerRepository implements LockerRepositoryPort {
     });
   }
 }
-
-export const lockerRepository = new LockerRepository();

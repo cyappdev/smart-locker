@@ -1,16 +1,23 @@
-import express, { type Express } from "express";
-import type { LockerController } from "./controllers/locker.controller.ts";
-import { errorHandler } from "./middlewares/error-handler.ts";
-import { createLockerRouter } from "./routes/locker.route.ts";
+import express, { type Express, type Router } from "express";
 import cors from "cors";
+import { errorHandler } from "./middlewares/error-handler.ts";
 
-export const createApp = (controller?: LockerController): Express => {
+export interface AppRouters {
+  health: Router;
+  lockers: Router;
+}
+
+export const createApp = (routers: AppRouters): Express => {
   const app = express();
   app.use(cors(process.env.CORS_ORIGIN ? { origin: process.env.CORS_ORIGIN } : {}));
-
   app.use(express.json());
 
-  app.use("/api/lockers", createLockerRouter(controller));
+  app.use("/health", routers.health);
+  app.use("/api/lockers", routers.lockers);
+
+  app.use((_req, res) => {
+    res.sendStatus(404);
+  });
 
   app.use(errorHandler);
 

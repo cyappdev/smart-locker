@@ -1,33 +1,44 @@
-import type { RequestHandler } from "express";
-import type { ZodType } from "zod";
+import type { Request, RequestHandler } from "express";
+import type { ZodError, ZodType } from "zod";
 
-type RequestSchemas = {
-  body?: ZodType;
-  query?: ZodType;
-  params?: ZodType;
+type RequestSchemas<Params, Body, Query> = {
+  params?: ZodType<Params>;
+  query?: ZodType<Query>;
+  body?: ZodType<Body>;
 };
 
-export const validateRequest = (schemas: RequestSchemas): RequestHandler => {
+export const validateRequest = <Params = {}, Body = unknown, Query = Request["query"]>(
+  schemas: RequestSchemas<Params, Body, Query>,
+): RequestHandler<Params, unknown, Body, Query> => {
   return (req, res, next) => {
-    for (const [source, schema] of Object.entries(schemas)) {
-      if (!schema) continue;
+    const sendValidationError = (error: ZodError) => {
+      res.status(400).json({
+        code: "VALIDATION_ERROR",
+        message: "Request validation failed.",
+        details: error.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        })),
+      });
+    };
 
-      const result = schema.safeParse(req[source as keyof RequestSchemas]);
-      if (!result.success) {
-        res.status(400).json({
-          code: "VALIDATION_ERROR",
-          message: "Request validation failed.",
-          details: result.error.issues.map((issue) => ({
-            field: issue.path.join("."),
-            message: issue.message,
-          })),
-        });
-        return;
-      }
+    if (schemas.params) {
+      const result = schemas.params.safeParse(req.params);
+      if (!result.success) return sendValidationError(result.error);
+      req.params = result.data;
+    }
 
-      if (source === "body") res.locals.validatedBody = result.data;
-      if (source === "query") res.locals.validatedQuery = result.data;
-      if (source === "params") res.locals.validatedParams = result.data;
+    if (schemas.query) {
+      const result = schemas.query.safeParse(req.query);
+      if (!result.success) return sendValidationError(result.error);
+      // Express 5 exposes req.query as a getter, so the parsed value has to be defined over it.
+      Object.defineProperty(req, "query", { value: result.data });
+    }
+
+    if (schemas.body) {
+      const result = schemas.body.safeParse(req.body);
+      if (!result.success) return sendValidationError(result.error);
+      req.body = result.data;
     }
 
     next();

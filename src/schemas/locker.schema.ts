@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { LOCKER_STATUSES } from "../types/locker-status.ts";
-import { SIZE_CATEGORIES } from "../types/size-category.ts";
+import { LOCKER_STATUSES, SIZE_CATEGORIES } from "../types/locker.ts";
 
 const identifier = z
   .string()
@@ -14,57 +13,42 @@ const packageIdentifier = z
   .min(1, "Package identifier is required.")
   .max(128, "Package identifier must contain at most 128 characters.");
 
-const pageNumber = z.coerce.number().int().min(1);
-const pageLimit = z.coerce.number().int().min(1).max(100);
+const paginationQuery = z.strictObject({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+});
 
-export const createLockerSchema = z
-  .object({
-    identifier,
-    size: z.enum(SIZE_CATEGORIES),
-  })
-  .strict();
+export const createLockerSchema = z.strictObject({
+  identifier,
+  size: z.enum(SIZE_CATEGORIES),
+});
 
-export const listLockersSchema = z
-  .object({
-    page: pageNumber.default(1),
-    limit: pageLimit.default(10),
-    search: z.string().trim().optional(),
-    status: z.enum(LOCKER_STATUSES).optional(),
-  })
-  .strict();
+export const listLockersSchema = paginationQuery.extend({
+  search: z.string().trim().max(128).optional(),
+  status: z.enum(LOCKER_STATUSES).optional(),
+});
 
-export const listLockerEventsParamsSchema = z
-  .object({
-    lockerId: z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(z.number().int().safe().positive()),
-  })
-  .strict();
+export const listLockerEventsParamsSchema = z.strictObject({
+  lockerId: z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(z.number().int().safe().positive()),
+});
 
-export const listLockerEventsQuerySchema = z
-  .object({
-    page: pageNumber.default(1),
-    limit: pageLimit.default(10),
-  })
-  .strict();
+export const listLockerEventsQuerySchema = paginationQuery;
 
-export const storePackageSchema = z
-  .object({
-    size: z.enum(SIZE_CATEGORIES),
-    packageIdentifier,
-  })
-  .strict();
+export const storePackageSchema = z.strictObject({
+  size: z.enum(SIZE_CATEGORIES),
+  packageIdentifier,
+});
 
-export const retrievePackageSchema = z
-  .object({
-    lockerIdentifier: identifier,
-    pickupCode: z
-      .string()
-      .regex(/^\d{6}$/, "Pickup code must contain exactly 6 digits."),
-    confirmCharges: z.boolean().optional(),
-  })
-  .strict();
+export const retrievePackageSchema = z.strictObject({
+  lockerIdentifier: identifier,
+  pickupCode: z.string().regex(/^\d{6}$/, "Pickup code must contain exactly 6 digits."),
+  confirmCharges: z.boolean().optional(),
+});
 
-export type CreateLockerInput = z.infer<typeof createLockerSchema>;
-export type ListLockersInput = z.infer<typeof listLockersSchema>;
-export type ListLockerEventsInput = z.infer<typeof listLockerEventsParamsSchema> & z.infer<typeof listLockerEventsQuerySchema>;
-export type StorePackageInput = z.infer<typeof storePackageSchema>;
-export type RetrievePackageInput = z.infer<typeof retrievePackageSchema>;
+export type CreateLockerBody = z.infer<typeof createLockerSchema>;
+export type ListLockersQuery = z.infer<typeof listLockersSchema>;
+export type ListLockerEventsParams = z.infer<typeof listLockerEventsParamsSchema>;
+export type ListLockerEventsQuery = z.infer<typeof listLockerEventsQuerySchema>;
+export type ListLockerEventsInput = ListLockerEventsParams & ListLockerEventsQuery;
+export type StorePackageBody = z.infer<typeof storePackageSchema>;
+export type RetrievePackageBody = z.infer<typeof retrievePackageSchema>;

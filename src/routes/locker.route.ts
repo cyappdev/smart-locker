@@ -1,8 +1,5 @@
 import express from "express";
-import {
-  lockerController,
-  type LockerController,
-} from "../controllers/locker.controller.ts";
+import type { LockerController } from "../controllers/locker.controller.ts";
 import { validateRequest } from "../middlewares/validate-request.ts";
 import {
   createLockerSchema,
@@ -13,9 +10,7 @@ import {
   storePackageSchema,
 } from "../schemas/locker.schema.ts";
 
-export const createLockerRouter = (
-  controller: LockerController = lockerController,
-) => {
+export const createLockerRouter = (controller: LockerController) => {
   const router = express.Router();
 
   router.post("/", validateRequest({ body: createLockerSchema }), controller.create);

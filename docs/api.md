@@ -47,12 +47,12 @@
 
 `GET /api/lockers`
 
-| Query parameter | Default | Description                                          |
-| --------------- | ------- | ---------------------------------------------------- |
-| `page`          | `1`     | Positive integer page number.                        |
-| `limit`         | `10`    | Positive integer from 1 to 100.                      |
-| `search`        | None    | Identifier search; `%` and `_` act as SQL wildcards. |
-| `status`        | None    | `available` or `occupied`                            |
+| Query parameter | Default | Description                                                                  |
+| --------------- | ------- | ---------------------------------------------------------------------------- |
+| `page`          | `1`     | Positive integer page number.                                                |
+| `limit`         | `10`    | Positive integer from 1 to 100.                                              |
+| `search`        | None    | Identifier search, at most 128 characters; `%` and `_` act as SQL wildcards. |
+| `status`        | None    | `available` or `occupied`                                                    |
 
 `200 OK` for `GET /api/lockers?status=occupied&page=1&limit=10`
 
@@ -231,6 +231,8 @@ Retrieved
 ## Error responses
 
 Request bodies reject unknown fields. Errors include a `code` and `message`. Validation errors also include a `details` array of field-level messages.
+
+A request to an unknown route returns `404` with the plain-text body `Not Found`.
 
 ```json
 {

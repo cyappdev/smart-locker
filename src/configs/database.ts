@@ -12,5 +12,4 @@ export const sequelize = new Sequelize({
 
 export const initDatabase = async () => {
   await sequelize.authenticate();
-  await sequelize.sync();
 };
