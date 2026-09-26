@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { useTestDatabase, Locker, LockerEvent, LockerRepository, LockerService } from "../helpers/mysql.ts";
+import { useTestDatabase, Locker, LockerEvent, SequelizeLockerRepository, LockerService } from "../helpers/mysql.ts";
 import { createAssignment } from "../helpers/lockers.ts";
 
 describe("Package retrieval (MySQL)", () => {
@@ -14,7 +14,7 @@ describe("Package retrieval (MySQL)", () => {
       lastOccupiedAt: locker.lastOccupiedAt?.toISOString(),
     };
 
-    const result = await new LockerRepository().retrievePackage(
+    const result = await new SequelizeLockerRepository().retrievePackage(
       locker.identifier,
       locker.pickupCode!,
       (assignment) => ({ result: assignment, release: false, chargesInCents: 100 }),
@@ -38,7 +38,7 @@ describe("Package retrieval (MySQL)", () => {
     const locker = await createAssignment();
     const occupiedAt = locker.lastOccupiedAt?.toISOString();
 
-    const result = await new LockerRepository().retrievePackage(
+    const result = await new SequelizeLockerRepository().retrievePackage(
       locker.identifier,
       locker.pickupCode!,
       (assignment) => ({ result: assignment, release: true, chargesInCents: 100 }),
@@ -72,7 +72,7 @@ describe("Package retrieval (MySQL)", () => {
     });
 
     try {
-      await expect(new LockerRepository().retrievePackage(
+      await expect(new SequelizeLockerRepository().retrievePackage(
         locker.identifier,
         locker.pickupCode!,
         () => ({ result: "retrieved", release: true, chargesInCents: 0 }),
@@ -99,7 +99,7 @@ describe("Package retrieval (MySQL)", () => {
     });
 
     try {
-      await expect(new LockerRepository().retrievePackage(
+      await expect(new SequelizeLockerRepository().retrievePackage(
         locker.identifier,
         locker.pickupCode!,
         () => ({ result: "retrieved", release: true, chargesInCents: 100 }),
@@ -121,7 +121,7 @@ describe("Package retrieval (MySQL)", () => {
   it("does not call the decision callback when no occupied assignment matches", async () => {
     const locker = await createAssignment();
     let called = false;
-    const result = await new LockerRepository().retrievePackage(
+    const result = await new SequelizeLockerRepository().retrievePackage(
       locker.identifier,
       "wrong-code",
       () => {
@@ -139,7 +139,7 @@ describe("Package retrieval (MySQL)", () => {
 
   it("lets exactly one simultaneous request release the assignment", async () => {
     const locker = await createAssignment();
-    const repository = new LockerRepository();
+    const repository = new SequelizeLockerRepository();
     const retrieve = () => repository.retrievePackage(
       locker.identifier,
       locker.pickupCode!,
@@ -161,7 +161,7 @@ describe("Package retrieval (MySQL)", () => {
 
   it("lets exactly one simultaneous confirmation release an assignment", async () => {
     const locker = await createAssignment();
-    const service = new LockerService(new LockerRepository(), undefined, () => new Date("2024-06-02T12:00:00.000Z"));
+    const service = new LockerService(new SequelizeLockerRepository(), undefined, () => new Date("2024-06-02T12:00:00.000Z"));
     const input = { lockerIdentifier: locker.identifier, pickupCode: locker.pickupCode!, confirmCharges: true };
     const outcomes = await Promise.allSettled([service.retrievePackage(input), service.retrievePackage(input)]);
     expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
@@ -174,7 +174,7 @@ describe("Package retrieval (MySQL)", () => {
   it("does not release an assignment with a missing storage timestamp", async () => {
     const locker = await createAssignment();
     await locker.update({ lastOccupiedAt: null });
-    const service = new LockerService(new LockerRepository());
+    const service = new LockerService(new SequelizeLockerRepository());
     await expect(service.retrievePackage({ lockerIdentifier: locker.identifier, pickupCode: locker.pickupCode! }))
       .rejects.toThrow("Invalid storage timestamp.");
     await locker.reload();

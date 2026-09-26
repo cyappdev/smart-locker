@@ -2,17 +2,21 @@ import { Op, type WhereOptions } from "sequelize";
 import { sequelize } from "../configs/database.ts";
 import { LockerEvent } from "../models/locker-event.model.ts";
 import { Locker } from "../models/locker.model.ts";
-import type {
-  CreateLockerBody,
-  ListLockerEventsInput,
-  ListLockersQuery,
-} from "../schemas/locker.schema.ts";
-import type { SizeCategory } from "../types/locker.ts";
+import type { LockerStatus, SizeCategory } from "../types/locker.ts";
 
-export interface LockerRepositoryPort {
-  create(input: CreateLockerBody): Promise<Locker>;
-  list(input: ListLockersQuery): Promise<{ rows: Locker[]; count: number }>;
-  listEvents(input: ListLockerEventsInput): Promise<{ rows: LockerEvent[]; count: number } | null>;
+export interface LockerRepository {
+  create(input: { identifier: string; size: SizeCategory }): Promise<Locker>;
+  list(input: {
+    page: number;
+    limit: number;
+    status?: LockerStatus;
+    search?: string;
+  }): Promise<{ rows: Locker[]; count: number }>;
+  listEvents(input: {
+    lockerId: number;
+    page: number;
+    limit: number;
+  }): Promise<{ rows: LockerEvent[]; count: number } | null>;
   findAvailable(sizes: readonly SizeCategory[]): Promise<Locker | null>;
   /**
    * @returns The assigned locker, or null if another request claimed it first.
@@ -41,8 +45,8 @@ export interface RetrievalDecision<T> {
   chargesInCents: number;
 }
 
-export class LockerRepository implements LockerRepositoryPort {
-  create(input: CreateLockerBody) {
+export class SequelizeLockerRepository implements LockerRepository {
+  create(input: { identifier: string; size: SizeCategory }) {
     return Locker.create({
       identifier: input.identifier,
       size: input.size,
@@ -52,7 +56,12 @@ export class LockerRepository implements LockerRepositoryPort {
     });
   }
 
-  list(input: ListLockersQuery) {
+  list(input: {
+    page: number;
+    limit: number;
+    status?: LockerStatus;
+    search?: string;
+  }) {
     const where: WhereOptions = {};
     if (input.status) where.status = input.status;
     if (input.search) where.identifier = { [Op.like]: `%${input.search}%` };
@@ -73,7 +82,11 @@ export class LockerRepository implements LockerRepositoryPort {
     });
   }
 
-  async listEvents(input: ListLockerEventsInput) {
+  async listEvents(input: {
+    lockerId: number;
+    page: number;
+    limit: number;
+  }) {
     const locker = await Locker.findByPk(input.lockerId, { attributes: ["id"] });
     if (!locker) return null;
 
@@ -118,22 +131,25 @@ export class LockerRepository implements LockerRepositoryPort {
 
       if (!availableLocker) return null;
 
-      const assignedLocker = await availableLocker.update({
-        status: "occupied",
-        packageIdentifier,
-        pickupCode,
-        lastOccupiedAt: occupiedAt,
-      }, { transaction });
+      await availableLocker.update(
+        {
+          status: "occupied",
+          packageIdentifier,
+          pickupCode,
+          lastOccupiedAt: occupiedAt,
+        },
+        { transaction },
+      );
 
       await LockerEvent.create({
-        lockerId: assignedLocker.id,
+        lockerId: availableLocker.id,
         eventType: "package_stored",
         lockerStatus: "occupied",
         packageIdentifier,
         chargesInCents: null,
       }, { transaction });
 
-      return assignedLocker;
+      return availableLocker;
     });
   }
 
@@ -141,14 +157,13 @@ export class LockerRepository implements LockerRepositoryPort {
     lockerIdentifier: string,
     pickupCode: string,
     decide: (assignment: RetrievalAssignment) => RetrievalDecision<T>,
-  ): Promise<T | null> {
+  ) {
     return sequelize.transaction(async (transaction) => {
       const locker = await Locker.findOne({
         where: {
           identifier: lockerIdentifier,
           pickupCode,
           status: "occupied",
-          packageIdentifier: { [Op.ne]: null },
         },
         transaction,
         lock: transaction.LOCK.UPDATE,

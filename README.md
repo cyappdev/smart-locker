@@ -129,6 +129,8 @@ npm ci
 npm run dev
 ```
 
+Set `DB_LOG_SQL=true` in `.env` to print SQL queries. Logging is off by default because queries contain pickup codes.
+
 ## Design decisions
 
 Package details and pickup codes stay in the locker table because they only need to track the current assignment.
@@ -145,12 +147,42 @@ Storage fee calculation is kept separate to make pricing easier to test and upda
 - [Data model](docs/data-model.md)
 - [Storage pricing](docs/storage-pricing.md)
 
-## Out Of Scope or Limitation
+## Out Of Scope, Limitation, improvement
 
 - **Access control:** No authentication, role checks, or pickup-code rate limiting. The locker list exposes pickup codes for demonstration. These endpoints must be protected before a public deployment.
 - **Production deployment:** The Docker setup is intended for local development. The `.env` file is committed and the MySQL port is exposed for convenience. Production use would require proper secret management and network restrictions.
-- **Demo UI:** `examples/demo-client` is a small React client for trying the API, not a production quality frontend. The backend remains the source of truth for locker and charge rules.
+- **Better production grade UI:** Currently `examples/demo-client` is a small React client for trying / testing the API, not a production quality frontend. The backend remains the source of truth for locker and charge rules.
+- **API throttling & Locker Freezing:** User can brute force the pickup code, if user tried input for 10 time the locker should freeze and not allow reterive until admin unfreezed it.
 
 ## AI assistance
 
-OpenAI Codex and Claude Code were used for code review, refactoring, test coverage, and documentation. I reviewed, tested, and verified every change and can explain each design decision.
+**Which AI tool(s) did you use?:** ChatGPT & Codex
+
+**How did you use them?**
+
+- ChatGPT
+  - basic chat and discussion and learn the technical implemation as a replacement of searching for document for fast development
+- Codex
+  - AI assisted programming for code generation and debuging with context from `AGENTS.md` and `docs/`
+  - Use custom /skill on repeated example `/code-review document`(docs and Readme) `/code-review requirement`(the pdf)
+  - Challenge suggestions and generate alternate solution for review
+
+**What portions of the solution were AI-assisted?**
+
+Below is the top task AI-asseted through the development
+
+- Research and discussion
+- Code generation
+- Code refactoring example renaming, change design, move function
+- Perform Repetitive tasks eg Rename symbols across files, update imports and documentation links after moving files, format code, and update tests when API contracts change.
+- Polish document
+
+**Any prompts or workflow you’d like to share?**
+
+My workflow for this project:
+
+1. Set up the project structure and decide the responsibilities of routes, controllers, services, and repositories.
+2. Document detailed API specifications, including validation and error responses, and prepare `AGENTS.md` with the project conventions.
+3. Manually implement the Create Locker API and its tests as a reference for the remaining endpoints.
+4. Ask the AI agent to implement the remaining APIs one at a time, including tests, following the specification and reference implementation. Review each change and ask for modified when not align with what i want, then have a review agent run `/code-review requirement` or `/code-review docs` and address its findings until the review passes. 
+6. Run the full test suite and TypeScript checks, try the workflows through the demo client, and check that the documentation matches the implementation.

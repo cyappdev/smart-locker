@@ -2,7 +2,7 @@ import { UniqueConstraintError } from "sequelize";
 import { describe, expect, it, vi } from "vitest";
 import type { Locker } from "../../src/models/locker.model.ts";
 import type { LockerEvent } from "../../src/models/locker-event.model.ts";
-import type { LockerRepositoryPort } from "../../src/repositories/locker.repository.ts";
+import type { LockerRepository } from "../../src/repositories/locker.repository.ts";
 import { LockerService } from "../../src/services/locker.service.ts";
 
 const makeLocker = (overrides: Partial<Locker> = {}) =>
@@ -18,8 +18,8 @@ const makeLocker = (overrides: Partial<Locker> = {}) =>
   }) as Locker;
 
 const makeRepository = (
-  overrides: Partial<LockerRepositoryPort> = {},
-): LockerRepositoryPort => ({
+  overrides: Partial<LockerRepository> = {},
+): LockerRepository => ({
   create: vi.fn(async (input) => makeLocker(input)),
   list: vi.fn(async () => ({ rows: [], count: 0 })),
   listEvents: vi.fn(async () => ({ rows: [], count: 0 })),
@@ -38,6 +38,34 @@ const makeRepository = (
 });
 
 describe("LockerService", () => {
+  it("translates a duplicate locker identifier into a conflict", async () => {
+    const repository = makeRepository({
+      create: vi.fn<LockerRepository["create"]>().mockRejectedValue(
+        new UniqueConstraintError({ fields: { identifier: "A1" } }),
+      ),
+    });
+
+    await expect(new LockerService(repository).createLocker({ identifier: "A1", size: "small" }))
+      .rejects.toMatchObject({
+        status: 409,
+        code: "LOCKER_IDENTIFIER_EXISTS",
+        message: "A locker with the same identifier already exists.",
+      });
+  });
+
+  it.each([
+    ["another unique field", new UniqueConstraintError({ fields: { pickup_code: "000001" } })],
+    ["missing constraint fields", new UniqueConstraintError({})],
+    ["a database failure", new Error("Database unavailable")],
+  ])("propagates %s when creating a locker", async (_description, error) => {
+    const repository = makeRepository({
+      create: vi.fn<LockerRepository["create"]>().mockRejectedValue(error),
+    });
+
+    await expect(new LockerService(repository).createLocker({ identifier: "A1", size: "small" }))
+      .rejects.toBe(error);
+  });
+
   it.each([
     ["small", ["small", "medium", "large"]],
     ["medium", ["medium", "large"]],
@@ -64,7 +92,7 @@ describe("LockerService", () => {
     const firstLocker = makeLocker();
     const nextLocker = makeLocker({ id: 2, identifier: "A2" });
     const repository = makeRepository({
-      findAvailable: vi.fn<LockerRepositoryPort["findAvailable"]>()
+      findAvailable: vi.fn<LockerRepository["findAvailable"]>()
         .mockResolvedValueOnce(firstLocker)
         .mockResolvedValueOnce(nextLocker),
     });
@@ -82,7 +110,7 @@ describe("LockerService", () => {
 
   it("returns not-found when the last available locker is claimed before assignment", async () => {
     const repository = makeRepository({
-      findAvailable: vi.fn<LockerRepositoryPort["findAvailable"]>()
+      findAvailable: vi.fn<LockerRepository["findAvailable"]>()
         .mockResolvedValueOnce(makeLocker())
         .mockResolvedValueOnce(null),
       assignPackage: vi.fn(async () => null),
@@ -90,7 +118,7 @@ describe("LockerService", () => {
     const service = new LockerService(repository, () => "000001");
 
     await expect(service.storePackage({ size: "small", packageIdentifier: "ORDER-1" }))
-      .rejects.toMatchObject({ code: "LOCKER_NOT_FOUND" });
+      .rejects.toMatchObject({ code: "NO_AVAILABLE_LOCKER" });
     expect(repository.assignPackage).toHaveBeenCalledTimes(1);
   });
 
@@ -115,14 +143,14 @@ describe("LockerService", () => {
     );
   });
 
-  it("returns LOCKER_NOT_FOUND when no suitable locker exists", async () => {
+  it("returns NO_AVAILABLE_LOCKER when no suitable locker exists", async () => {
     const service = new LockerService(makeRepository(), () => "000001");
 
     await expect(
       service.storePackage({ size: "large", packageIdentifier: "ORDER-1" }),
     ).rejects.toMatchObject({
       status: 404,
-      code: "LOCKER_NOT_FOUND",
+      code: "NO_AVAILABLE_LOCKER",
       message: "No suitable locker found.",
     });
   });
@@ -130,8 +158,8 @@ describe("LockerService", () => {
   it("retries when a pickup code violates its unique constraint", async () => {
     const availableLocker = makeLocker();
     const assignPackage = vi
-      .fn<LockerRepositoryPort["assignPackage"]>()
-      .mockRejectedValueOnce(new UniqueConstraintError({ errors: [] }))
+      .fn<LockerRepository["assignPackage"]>()
+      .mockRejectedValueOnce(new UniqueConstraintError({ fields: { pickup_code: "000001" } }))
       .mockResolvedValueOnce(
         makeLocker({
           status: "occupied",
@@ -152,7 +180,52 @@ describe("LockerService", () => {
     });
 
     expect(assignPackage).toHaveBeenCalledTimes(2);
+    expect(assignPackage).toHaveBeenNthCalledWith(
+      1, availableLocker, "ORDER-1", "000001", expect.any(Date),
+    );
+    expect(assignPackage).toHaveBeenNthCalledWith(
+      2, availableLocker, "ORDER-1", "000002", expect.any(Date),
+    );
     expect(result.pickupCode).toBe("000002");
+  });
+
+  it.each([
+    ["another unique field", new UniqueConstraintError({ fields: { identifier: "A1" } })],
+    ["missing constraint fields", new UniqueConstraintError({})],
+    ["the model attribute instead of the database column", new UniqueConstraintError({ fields: { pickupCode: "000001" } })],
+    ["a database failure", new Error("Database unavailable")],
+  ])("propagates %s without retrying", async (_description, error) => {
+    const repository = makeRepository({
+      findAvailable: vi.fn(async () => makeLocker()),
+      assignPackage: vi.fn<LockerRepository["assignPackage"]>().mockRejectedValue(error),
+    });
+    const generatePickupCode = vi.fn(() => "000001");
+    const service = new LockerService(repository, generatePickupCode);
+
+    await expect(service.storePackage({ size: "small", packageIdentifier: "ORDER-1" }))
+      .rejects.toBe(error);
+
+    expect(repository.assignPackage).toHaveBeenCalledTimes(1);
+    expect(repository.findAvailable).toHaveBeenCalledTimes(1);
+    expect(generatePickupCode).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops after five pickup-code collisions", async () => {
+    const repository = makeRepository({
+      findAvailable: vi.fn(async () => makeLocker()),
+      assignPackage: vi.fn<LockerRepository["assignPackage"]>().mockRejectedValue(
+        new UniqueConstraintError({ fields: { pickup_code: "000001" } }),
+      ),
+    });
+    const generatePickupCode = vi.fn(() => "000001");
+    const service = new LockerService(repository, generatePickupCode);
+
+    await expect(service.storePackage({ size: "small", packageIdentifier: "ORDER-1" }))
+      .rejects.toMatchObject({ status: 500, code: "PICKUP_CODE_GENERATION_FAILED" });
+
+    expect(repository.assignPackage).toHaveBeenCalledTimes(5);
+    expect(repository.findAvailable).toHaveBeenCalledTimes(1);
+    expect(generatePickupCode).toHaveBeenCalledTimes(5);
   });
 
   it("calculates list pagination and returns current debug assignment fields", async () => {

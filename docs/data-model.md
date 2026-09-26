@@ -20,7 +20,7 @@
 | ------------------ | -------- | ---------------------------------------------------------- |
 | id                 | No       | Auto-generated internal event ID                           |
 | locker_id          | No       | Locker associated with the event                           |
-| event_type         | No       | `package_stored`, `package_retrieved`, or `status_changed` |
+| event_type         | No       | `package_stored` or `package_retrieved` |
 | locker_status      | No       | Locker status after the event: `available` or `occupied`   |
 | package_identifier | Yes      | Package associated with the event, if any                  |
 | charges_in_cents   | Yes      | Calculated charge associated with the event, if any        |

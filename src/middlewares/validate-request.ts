@@ -1,5 +1,6 @@
 import type { Request, RequestHandler } from "express";
 import type { ZodError, ZodType } from "zod";
+import type { ErrorResponse } from "../types/error-response.ts";
 
 type RequestSchemas<Params, Body, Query> = {
   params?: ZodType<Params>;
@@ -19,7 +20,7 @@ export const validateRequest = <Params = {}, Body = unknown, Query = Request["qu
           field: issue.path.join("."),
           message: issue.message,
         })),
-      });
+      } satisfies ErrorResponse);
     };
 
     if (schemas.params) {

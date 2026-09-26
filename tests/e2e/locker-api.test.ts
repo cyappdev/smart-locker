@@ -12,7 +12,6 @@ describe("Locker API", () => {
   let app: Express;
 
   beforeAll(async () => {
-    // Imported after useTestDatabase has pointed the database config at the test container.
     const { createApp } = await import("../../src/app.ts");
     const { createRouters } = await import("../../src/composition/index.ts");
     app = createApp(createRouters());
@@ -92,6 +91,31 @@ describe("Locker API", () => {
     expect(response.body.code).toBe("PACKAGE_NOT_FOUND");
   });
 
+  it("rejects a pickup code that belongs to another locker", async () => {
+    const locker = await createAssignment({ pickupCode: "111111" });
+    const otherLocker = await createAssignment({ pickupCode: "222222" });
+
+    const response = await request(app)
+      .post("/api/lockers/retrieve")
+      .send({ lockerIdentifier: locker.identifier, pickupCode: "222222", confirmCharges: true })
+      .expect(404);
+    expect(response.body.code).toBe("PACKAGE_NOT_FOUND");
+    expect((await locker.reload()).status).toBe("occupied");
+    expect((await otherLocker.reload()).status).toBe("occupied");
+  });
+
+  it("returns 404 once every suitable locker is occupied", async () => {
+    await createAvailableLocker("small");
+    const body = { packageIdentifier: "ORDER-1", size: "small" };
+
+    await request(app).post("/api/lockers/store").send(body).expect(200);
+    const response = await request(app)
+      .post("/api/lockers/store")
+      .send({ ...body, packageIdentifier: "ORDER-2" })
+      .expect(404);
+    expect(response.body.code).toBe("NO_AVAILABLE_LOCKER");
+  });
+
   it("returns 404 when no suitable locker is available", async () => {
     await createAvailableLocker("small");
 
@@ -99,7 +123,7 @@ describe("Locker API", () => {
       .post("/api/lockers/store")
       .send({ packageIdentifier: "ORDER-1", size: "large" })
       .expect(404);
-    expect(response.body.code).toBe("LOCKER_NOT_FOUND");
+    expect(response.body.code).toBe("NO_AVAILABLE_LOCKER");
   });
 
   it("rejects a duplicate locker identifier", async () => {
@@ -110,6 +134,16 @@ describe("Locker API", () => {
       .send({ identifier: "S1", size: "large" })
       .expect(409);
     expect(response.body.code).toBe("LOCKER_IDENTIFIER_EXISTS");
+  });
+
+  it("filters lockers by identifier search", async () => {
+    for (const identifier of ["A1", "A2", "B1"]) {
+      await request(app).post("/api/lockers").send({ identifier, size: "small" }).expect(201);
+    }
+
+    const response = await request(app).get("/api/lockers?search=A").expect(200);
+    expect(response.body.data.map((locker: { identifier: string }) => locker.identifier))
+      .toEqual(["A1", "A2"]);
   });
 
   it("paginates a locker's events newest first", async () => {

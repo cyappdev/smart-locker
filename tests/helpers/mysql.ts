@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, vi } from "vitest";
 export let sequelize: typeof import("../../src/configs/database.ts").sequelize;
 export let Locker: typeof import("../../src/models/locker.model.ts").Locker;
 export let LockerEvent: typeof import("../../src/models/locker-event.model.ts").LockerEvent;
-export let LockerRepository: typeof import("../../src/repositories/locker.repository.ts").LockerRepository;
+export let SequelizeLockerRepository: typeof import("../../src/repositories/locker.repository.ts").SequelizeLockerRepository;
 export let LockerService: typeof import("../../src/services/locker.service.ts").LockerService;
 
 export const useTestDatabase = () => {
@@ -20,13 +20,12 @@ export const useTestDatabase = () => {
     vi.stubEnv("DB_NAME", container.getDatabase());
     vi.stubEnv("DB_USER", container.getUsername());
     vi.stubEnv("DB_PASSWORD", container.getUserPassword());
-    vi.stubEnv("DB_LOG_SQL", "false");
 
     // Database configuration is read on import, so set the container environment first.
     ({ sequelize } = await import("../../src/configs/database.ts"));
     ({ Locker } = await import("../../src/models/locker.model.ts"));
     ({ LockerEvent } = await import("../../src/models/locker-event.model.ts"));
-    ({ LockerRepository } = await import("../../src/repositories/locker.repository.ts"));
+    ({ SequelizeLockerRepository } = await import("../../src/repositories/locker.repository.ts"));
     ({ LockerService } = await import("../../src/services/locker.service.ts"));
     await sequelize.sync();
   }, 120_000);

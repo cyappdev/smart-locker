@@ -9,7 +9,7 @@ export interface AppRouters {
 
 export const createApp = (routers: AppRouters): Express => {
   const app = express();
-  app.use(cors(process.env.CORS_ORIGIN ? { origin: process.env.CORS_ORIGIN } : {}));
+  app.use(cors(process.env.CORS_ALLOWED_ORIGIN ? { origin: process.env.CORS_ALLOWED_ORIGIN } : {}));
   app.use(express.json());
 
   app.use("/health", routers.health);

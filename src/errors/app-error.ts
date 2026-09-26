@@ -1,10 +1,12 @@
+import type { ErrorCode } from "./error-code.ts";
+
 export class AppError extends Error {
   readonly status: number;
-  readonly code: string;
+  readonly code: ErrorCode;
 
   constructor(
     status: number,
-    code: string,
+    code: ErrorCode,
     message: string,
   ) {
     super(message);

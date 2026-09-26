@@ -1,7 +1,8 @@
 import { randomInt } from "node:crypto";
 import { UniqueConstraintError } from "sequelize";
 import { AppError } from "../errors/app-error.ts";
-import type { LockerRepositoryPort } from "../repositories/locker.repository.ts";
+import type { Locker } from "../models/locker.model.ts";
+import type { LockerRepository } from "../repositories/locker.repository.ts";
 import type {
   CreateLockerBody,
   ListLockerEventsInput,
@@ -18,7 +19,7 @@ import type {
   StorePackageResponse,
 } from "../types/locker-response.ts";
 import {
-  TieredStorageFeePolicy,
+  createStorageFeePolicy,
   type StorageFeePolicy,
 } from "./storage-fee-policy.ts";
 
@@ -31,17 +32,17 @@ const ELIGIBLE_LOCKER_SIZES: Record<SizeCategory, readonly SizeCategory[]> = {
 const PICKUP_CODE_ATTEMPTS = 5;
 
 export class LockerService {
-  private readonly repository: LockerRepositoryPort;
+  private readonly repository: LockerRepository;
   private readonly generatePickupCode: () => string;
   private readonly now: () => Date;
   private readonly storageFeePolicy: StorageFeePolicy;
 
   constructor(
-    repository: LockerRepositoryPort,
+    repository: LockerRepository,
     generatePickupCode: () => string = () =>
       randomInt(0, 1_000_000).toString().padStart(6, "0"),
     now: () => Date = () => new Date(),
-    storageFeePolicy: StorageFeePolicy = new TieredStorageFeePolicy(),
+    storageFeePolicy: StorageFeePolicy = createStorageFeePolicy("tiered"),
   ) {
     this.repository = repository;
     this.generatePickupCode = generatePickupCode;
@@ -50,8 +51,22 @@ export class LockerService {
   }
 
   async createLocker(input: CreateLockerBody): Promise<CreateLockerResponse> {
-    const { id, identifier, size, status } = await this.repository.create(input);
-    return { id, identifier, size, status };
+    try {
+      const { id, identifier, size, status } = await this.repository.create(input);
+      return { id, identifier, size, status };
+    } catch (error) {
+      if (
+        error instanceof UniqueConstraintError &&
+        Object.hasOwn(error.fields, "identifier")
+      ) {
+        throw new AppError(
+          409,
+          "LOCKER_IDENTIFIER_EXISTS",
+          "A locker with the same identifier already exists.",
+        );
+      }
+      throw error;
+    }
   }
 
   async listLockers(input: ListLockersQuery): Promise<ListLockersResponse> {
@@ -100,45 +115,49 @@ export class LockerService {
   }
 
   async storePackage(input: StorePackageBody): Promise<StorePackageResponse> {
-    let claimedByAnotherRequest: boolean;
+    let assignedLocker: Locker | null;
 
     do {
       const locker = await this.repository.findAvailable(
         ELIGIBLE_LOCKER_SIZES[input.size],
       );
       if (!locker) {
-        throw new AppError(404, "LOCKER_NOT_FOUND", "No suitable locker found.");
+        throw new AppError(404, "NO_AVAILABLE_LOCKER", "No suitable locker found.");
       }
 
-      claimedByAnotherRequest = false;
-      for (let attempt = 0; attempt < PICKUP_CODE_ATTEMPTS; attempt += 1) {
-        const pickupCode = this.generatePickupCode();
+      assignedLocker = await this.assignWithUniquePickupCode(locker, input.packageIdentifier);
+    } while (!assignedLocker); // Another request claimed this locker first, search again.
 
-        try {
-          const updatedLocker = await this.repository.assignPackage(
-            locker,
-            input.packageIdentifier,
-            pickupCode,
-            this.now(),
-          );
+    return {
+      lockerId: assignedLocker.id,
+      identifier: assignedLocker.identifier,
+      packageIdentifier: input.packageIdentifier,
+      pickupCode: assignedLocker.pickupCode!,
+      status: "occupied",
+    };
+  }
 
-          if (!updatedLocker) {
-            claimedByAnotherRequest = true;
-            break;
-          }
-
-          return {
-            lockerId: updatedLocker.id,
-            identifier: updatedLocker.identifier,
-            packageIdentifier: updatedLocker.packageIdentifier!,
-            pickupCode: updatedLocker.pickupCode!,
-            status: "occupied",
-          };
-        } catch (error) {
-          if (!(error instanceof UniqueConstraintError)) throw error;
+  private async assignWithUniquePickupCode(
+    locker: Locker,
+    packageIdentifier: string,
+  ): Promise<Locker | null> {
+    for (let attempt = 0; attempt < PICKUP_CODE_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.repository.assignPackage(
+          locker,
+          packageIdentifier,
+          this.generatePickupCode(),
+          this.now(),
+        );
+      } catch (error) {
+        if (
+          !(error instanceof UniqueConstraintError) ||
+          !Object.hasOwn(error.fields, "pickup_code")
+        ) {
+          throw error;
         }
       }
-    } while (claimedByAnotherRequest);
+    }
 
     throw new AppError(
       500,

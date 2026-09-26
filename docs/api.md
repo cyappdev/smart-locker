@@ -163,7 +163,7 @@
 | HTTP status | Code                            | When the error occurs |
 | ----------- | ------------------------------- | --------------------- |
 | 400         | `VALIDATION_ERROR`              | Missing, invalid, or unknown request fields; malformed JSON. |
-| 404         | `LOCKER_NOT_FOUND`              | No suitable available locker exists. |
+| 404         | `NO_AVAILABLE_LOCKER`           | No suitable available locker exists. |
 | 500         | `PICKUP_CODE_GENERATION_FAILED` | A unique pickup code cannot be generated after retries. |
 | 500         | `INTERNAL_SERVER_ERROR`         | An unexpected server error occurs. |
 

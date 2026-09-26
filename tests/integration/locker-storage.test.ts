@@ -1,6 +1,5 @@
-import { UniqueConstraintError } from "sequelize";
 import { describe, expect, it, vi } from "vitest";
-import { useTestDatabase, LockerEvent, LockerRepository, LockerService } from "../helpers/mysql.ts";
+import { useTestDatabase, LockerEvent, SequelizeLockerRepository, LockerService } from "../helpers/mysql.ts";
 import { createAssignment, createAvailableLocker } from "../helpers/lockers.ts";
 
 describe("Package storage (MySQL)", () => {
@@ -8,7 +7,7 @@ describe("Package storage (MySQL)", () => {
 
   it("does not overwrite a locker selected before another assignment", async () => {
     const locker = await createAvailableLocker("small");
-    const repository = new LockerRepository();
+    const repository = new SequelizeLockerRepository();
 
     expect(await repository.assignPackage(locker, "ORDER-1", "101001", new Date())).toMatchObject({
       packageIdentifier: "ORDER-1",
@@ -34,7 +33,7 @@ describe("Package storage (MySQL)", () => {
   it("assigns each available locker once under competing storage requests", async () => {
     const small = await createAvailableLocker("small");
     const medium = await createAvailableLocker("medium");
-    const repository = new LockerRepository();
+    const repository = new SequelizeLockerRepository();
     const findAvailable = repository.findAvailable.bind(repository);
     let firstSelections = 0;
     let releaseSelections!: () => void;
@@ -60,7 +59,7 @@ describe("Package storage (MySQL)", () => {
     const failures = outcomes.filter((outcome) => outcome.status === "rejected");
     expect(successes).toHaveLength(2);
     expect(failures).toHaveLength(1);
-    expect(failures[0].reason).toMatchObject({ code: "LOCKER_NOT_FOUND" });
+    expect(failures[0].reason).toMatchObject({ code: "NO_AVAILABLE_LOCKER" });
     expect(new Set(successes.map((outcome) => outcome.value.lockerId))).toEqual(new Set([small.id, medium.id]));
 
     await Promise.all([small.reload(), medium.reload()]);
@@ -77,10 +76,10 @@ describe("Package storage (MySQL)", () => {
   it("rolls back a storage assignment when the pickup code is already in use", async () => {
     const existing = await createAssignment();
     const locker = await createAvailableLocker("small");
-    const repository = new LockerRepository();
+    const repository = new SequelizeLockerRepository();
 
     await expect(repository.assignPackage(locker, "ORDER-NEW", existing.pickupCode!, new Date()))
-      .rejects.toBeInstanceOf(UniqueConstraintError);
+      .rejects.toMatchObject({ fields: { pickup_code: existing.pickupCode } });
     expect(await LockerEvent.count({ where: { lockerId: locker.id } })).toBe(0);
     await locker.reload();
     expect(locker).toMatchObject({
@@ -103,7 +102,7 @@ describe("Package storage (MySQL)", () => {
     });
 
     try {
-      await expect(new LockerRepository().assignPackage(locker, "ORDER-NEW", "303001", new Date()))
+      await expect(new SequelizeLockerRepository().assignPackage(locker, "ORDER-NEW", "303001", new Date()))
         .rejects.toThrow("event insert failed");
     } finally {
       LockerEvent.removeHook("beforeCreate", hookName);
@@ -121,7 +120,7 @@ describe("Package storage (MySQL)", () => {
 
   it("stores only as many packages as there are lockers under a burst of requests", async () => {
     const lockers = await Promise.all(Array.from({ length: 4 }, () => createAvailableLocker("small")));
-    const repository = new LockerRepository();
+    const repository = new SequelizeLockerRepository();
     const outcomes = await Promise.allSettled(Array.from({ length: 12 }, (_, index) =>
       new LockerService(repository, () => String(200000 + index)).storePackage({
         size: "small",
@@ -133,7 +132,7 @@ describe("Package storage (MySQL)", () => {
     const failures = outcomes.filter((outcome) => outcome.status === "rejected");
     expect(successes).toHaveLength(lockers.length);
     expect(failures).toHaveLength(outcomes.length - lockers.length);
-    expect(failures.every((outcome) => outcome.reason.code === "LOCKER_NOT_FOUND")).toBe(true);
+    expect(failures.every((outcome) => outcome.reason.code === "NO_AVAILABLE_LOCKER")).toBe(true);
     expect(new Set(successes.map((outcome) => outcome.value.lockerId)).size).toBe(lockers.length);
 
     await Promise.all(lockers.map((locker) => locker.reload()));
