@@ -1,7 +1,7 @@
-import { createApp } from "./app.ts";
-import { createRouters } from "./composition/index.ts";
-import { initDatabase } from "./configs/database.ts";
-import "./models/index.ts";
+import { createApp } from './app.ts';
+import { createRouters } from './composition/index.ts';
+import { initDatabase } from './configs/database.ts';
+import './models/index.ts';
 
 async function main() {
   await initDatabase();

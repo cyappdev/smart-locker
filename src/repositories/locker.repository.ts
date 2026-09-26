@@ -1,8 +1,8 @@
-import { Op, type WhereOptions } from "sequelize";
-import { sequelize } from "../configs/database.ts";
-import { LockerEvent } from "../models/locker-event.model.ts";
-import { Locker } from "../models/locker.model.ts";
-import type { LockerStatus, SizeCategory } from "../types/locker.ts";
+import { Op, type WhereOptions } from 'sequelize';
+import { sequelize } from '../configs/database.ts';
+import { LockerEvent } from '../models/locker-event.model.ts';
+import { Locker } from '../models/locker.model.ts';
+import type { LockerStatus, SizeCategory } from '../types/locker.ts';
 
 export interface LockerRepository {
   create(input: { identifier: string; size: SizeCategory }): Promise<Locker>;
@@ -68,39 +68,40 @@ export class SequelizeLockerRepository implements LockerRepository {
 
     return Locker.findAndCountAll({
       attributes: [
-        "id",
-        "identifier",
-        "size",
-        "status",
-        "pickupCode",
-        "packageIdentifier",
+        'id',
+        'identifier',
+        'size',
+        'status',
+        'pickupCode',
+        'packageIdentifier',
       ],
       where,
-      order: [["identifier", "ASC"]],
+      order: [['identifier', 'ASC']],
       limit: input.limit,
       offset: (input.page - 1) * input.limit,
     });
   }
 
-  async listEvents(input: {
-    lockerId: number;
-    page: number;
-    limit: number;
-  }) {
-    const locker = await Locker.findByPk(input.lockerId, { attributes: ["id"] });
+  async listEvents(input: { lockerId: number; page: number; limit: number }) {
+    const locker = await Locker.findByPk(input.lockerId, {
+      attributes: ['id'],
+    });
     if (!locker) return null;
 
     return LockerEvent.findAndCountAll({
       attributes: [
-        "id",
-        "eventType",
-        "lockerStatus",
-        "packageIdentifier",
-        "chargesInCents",
-        "createdAt",
+        'id',
+        'eventType',
+        'lockerStatus',
+        'packageIdentifier',
+        'chargesInCents',
+        'createdAt',
       ],
       where: { lockerId: input.lockerId },
-      order: [["createdAt", "DESC"], ["id", "DESC"]],
+      order: [
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
       limit: input.limit,
       offset: (input.page - 1) * input.limit,
     });
@@ -108,10 +109,10 @@ export class SequelizeLockerRepository implements LockerRepository {
 
   findAvailable(sizes: readonly SizeCategory[]) {
     return Locker.findOne({
-      where: { status: "available", size: { [Op.in]: sizes } },
+      where: { status: 'available', size: { [Op.in]: sizes } },
       order: [
-        ["size", "ASC"],
-        ["identifier", "ASC"],
+        ['size', 'ASC'],
+        ['identifier', 'ASC'],
       ],
     });
   }
@@ -124,7 +125,7 @@ export class SequelizeLockerRepository implements LockerRepository {
   ) {
     return sequelize.transaction(async (transaction) => {
       const availableLocker = await Locker.findOne({
-        where: { id: locker.id, status: "available" },
+        where: { id: locker.id, status: 'available' },
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
@@ -133,7 +134,7 @@ export class SequelizeLockerRepository implements LockerRepository {
 
       await availableLocker.update(
         {
-          status: "occupied",
+          status: 'occupied',
           packageIdentifier,
           pickupCode,
           lastOccupiedAt: occupiedAt,
@@ -141,13 +142,16 @@ export class SequelizeLockerRepository implements LockerRepository {
         { transaction },
       );
 
-      await LockerEvent.create({
-        lockerId: availableLocker.id,
-        eventType: "package_stored",
-        lockerStatus: "occupied",
-        packageIdentifier,
-        chargesInCents: null,
-      }, { transaction });
+      await LockerEvent.create(
+        {
+          lockerId: availableLocker.id,
+          eventType: 'package_stored',
+          lockerStatus: 'occupied',
+          packageIdentifier,
+          chargesInCents: null,
+        },
+        { transaction },
+      );
 
       return availableLocker;
     });
@@ -163,7 +167,7 @@ export class SequelizeLockerRepository implements LockerRepository {
         where: {
           identifier: lockerIdentifier,
           pickupCode,
-          status: "occupied",
+          status: 'occupied',
         },
         transaction,
         lock: transaction.LOCK.UPDATE,
@@ -180,7 +184,7 @@ export class SequelizeLockerRepository implements LockerRepository {
       if (decision.release) {
         await locker.update(
           {
-            status: "available",
+            status: 'available',
             packageIdentifier: null,
             pickupCode: null,
             lastOccupiedAt: null,
@@ -188,13 +192,16 @@ export class SequelizeLockerRepository implements LockerRepository {
           { transaction },
         );
 
-        await LockerEvent.create({
-          lockerId: locker.id,
-          eventType: "package_retrieved",
-          lockerStatus: "available",
-          packageIdentifier,
-          chargesInCents: decision.chargesInCents,
-        }, { transaction });
+        await LockerEvent.create(
+          {
+            lockerId: locker.id,
+            eventType: 'package_retrieved',
+            lockerStatus: 'available',
+            packageIdentifier,
+            chargesInCents: decision.chargesInCents,
+          },
+          { transaction },
+        );
       }
 
       return decision.result;

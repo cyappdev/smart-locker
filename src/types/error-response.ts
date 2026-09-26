@@ -1,4 +1,4 @@
-import type { ErrorCode } from "../errors/error-code.ts";
+import type { ErrorCode } from '../errors/error-code.ts';
 
 export interface ErrorResponse {
   code: ErrorCode;

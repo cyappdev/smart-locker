@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { createStorageFeePolicy } from "../../src/services/storage-fee-policy.ts";
+import { describe, expect, it } from 'vitest';
+import { createStorageFeePolicy } from '../../src/services/storage-fee-policy.ts';
 
-describe("TieredStorageFeePolicy", () => {
-  const policy = createStorageFeePolicy("tiered");
-  const occupiedAt = new Date("2024-06-01T12:00:00.000Z");
+describe('TieredStorageFeePolicy', () => {
+  const policy = createStorageFeePolicy('tiered');
+  const occupiedAt = new Date('2024-06-01T12:00:00.000Z');
   const oneHour = 60 * 60 * 1000;
   const oneDay = 24 * oneHour;
   const justBeforeOneDay = oneDay - 1;
@@ -22,7 +22,9 @@ describe("TieredStorageFeePolicy", () => {
     [sixDays, 700],
     [tenDays, 1500],
     [elevenDays, 1800],
-  ])("charges %i milliseconds of storage as %i cents", (elapsed, charge) => {
-    expect(policy.calculate(occupiedAt, new Date(occupiedAt.getTime() + elapsed))).toBe(charge);
+  ])('charges %i milliseconds of storage as %i cents', (elapsed, charge) => {
+    expect(
+      policy.calculate(occupiedAt, new Date(occupiedAt.getTime() + elapsed)),
+    ).toBe(charge);
   });
 });

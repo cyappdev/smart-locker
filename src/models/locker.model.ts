@@ -4,14 +4,14 @@ import {
   type CreationOptional,
   type InferAttributes,
   type InferCreationAttributes,
-} from "sequelize";
-import { sequelize } from "../configs/database.ts";
+} from 'sequelize';
+import { sequelize } from '../configs/database.ts';
 import {
   LOCKER_STATUSES,
   SIZE_CATEGORIES,
   type LockerStatus,
   type SizeCategory,
-} from "../types/locker.ts";
+} from '../types/locker.ts';
 
 export class Locker extends Model<
   InferAttributes<Locker>,
@@ -47,30 +47,30 @@ Locker.init(
     status: {
       type: DataTypes.ENUM(...LOCKER_STATUSES),
       allowNull: false,
-      defaultValue: "available",
+      defaultValue: 'available',
     },
     packageIdentifier: {
       type: new DataTypes.STRING(128),
       allowNull: true,
-      field: "package_identifier",
+      field: 'package_identifier',
     },
     lastOccupiedAt: {
       type: DataTypes.DATE,
       allowNull: true,
-      field: "last_occupied_at",
+      field: 'last_occupied_at',
     },
     pickupCode: {
       type: new DataTypes.STRING(128),
       allowNull: true,
       unique: true,
-      field: "pickup_code",
+      field: 'pickup_code',
     },
-    createdAt: { type: DataTypes.DATE, field: "created_at" },
-    updatedAt: { type: DataTypes.DATE, field: "updated_at" },
+    createdAt: { type: DataTypes.DATE, field: 'created_at' },
+    updatedAt: { type: DataTypes.DATE, field: 'updated_at' },
   },
   {
     sequelize,
-    tableName: "lockers",
+    tableName: 'lockers',
     timestamps: true,
   },
 );

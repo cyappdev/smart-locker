@@ -1,6 +1,6 @@
-import express from "express";
-import type { LockerController } from "../controllers/locker.controller.ts";
-import { validateRequest } from "../middlewares/validate-request.ts";
+import express from 'express';
+import type { LockerController } from '../controllers/locker.controller.ts';
+import { validateRequest } from '../middlewares/validate-request.ts';
 import {
   createLockerSchema,
   listLockerEventsParamsSchema,
@@ -8,25 +8,36 @@ import {
   listLockersSchema,
   retrievePackageSchema,
   storePackageSchema,
-} from "../schemas/locker.schema.ts";
+} from '../schemas/locker.schema.ts';
 
 export const createLockerRouter = (controller: LockerController) => {
   const router = express.Router();
 
-  router.post("/", validateRequest({ body: createLockerSchema }), controller.create);
-  router.get("/", validateRequest({ query: listLockersSchema }), controller.list);
+  router.post(
+    '/',
+    validateRequest({ body: createLockerSchema }),
+    controller.create,
+  );
   router.get(
-    "/:lockerId/events",
-    validateRequest({ params: listLockerEventsParamsSchema, query: listLockerEventsQuerySchema }),
+    '/',
+    validateRequest({ query: listLockersSchema }),
+    controller.list,
+  );
+  router.get(
+    '/:lockerId/events',
+    validateRequest({
+      params: listLockerEventsParamsSchema,
+      query: listLockerEventsQuerySchema,
+    }),
     controller.listEvents,
   );
   router.post(
-    "/store",
+    '/store',
     validateRequest({ body: storePackageSchema }),
     controller.store,
   );
   router.post(
-    "/retrieve",
+    '/retrieve',
     validateRequest({ body: retrievePackageSchema }),
     controller.retrieve,
   );

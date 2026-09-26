@@ -6,9 +6,9 @@ export interface StorageFeePolicy {
   calculate(occupiedAt: Date, calculatedAt: Date): number;
 }
 
-export function createStorageFeePolicy(type: "tiered"): StorageFeePolicy {
+export function createStorageFeePolicy(type: 'tiered'): StorageFeePolicy {
   switch (type) {
-    case "tiered":
+    case 'tiered':
       return new TieredStorageFeePolicy();
   }
 }
@@ -17,7 +17,7 @@ export class TieredStorageFeePolicy implements StorageFeePolicy {
   calculate(occupiedAt: Date, calculatedAt: Date): number {
     const elapsed = calculatedAt.getTime() - occupiedAt.getTime();
     if (!Number.isFinite(elapsed) || elapsed < 0) {
-      throw new Error("Invalid storage timestamp.");
+      throw new Error('Invalid storage timestamp.');
     }
 
     const days = Math.floor(elapsed / MILLISECONDS_PER_DAY);

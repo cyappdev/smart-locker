@@ -1,8 +1,13 @@
-import type { LockerEventType, LockerStatus, SizeCategory } from "./locker.ts";
+import type { LockerEventType, LockerStatus, SizeCategory } from './locker.ts';
 
 interface Paginated<T> {
   data: T[];
-  pagination: { page: number; limit: number; total: number; totalPages: number };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface CreateLockerResponse {
@@ -35,11 +40,11 @@ export interface StorePackageResponse {
   identifier: string;
   packageIdentifier: string;
   pickupCode: string;
-  status: "occupied";
+  status: 'occupied';
 }
 
 export interface RetrievePackageResponse {
-  status: "retrieved" | "charges_required";
+  status: 'retrieved' | 'charges_required';
   packageIdentifier: string;
   occupiedAt: string;
   calculatedAt: string;

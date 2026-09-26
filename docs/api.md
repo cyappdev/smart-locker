@@ -19,10 +19,10 @@
 }
 ```
 
-| Fields       | Rule                                                      |
-| ------------ | --------------------------------------------------------- |
+| Fields       | Rule                                                   |
+| ------------ | ------------------------------------------------------ |
 | `identifier` | Unique physical label such as `A1`, used for retrieval |
-| `size`       | Must be `small`, `medium`, or `large`.                    |
+| `size`       | Must be `small`, `medium`, or `large`.                 |
 
 `201 Created`
 
@@ -37,11 +37,11 @@
 
 ### Possible errors
 
-| HTTP status | Code                       | When the error occurs |
-| ----------- | -------------------------- | --------------------- |
+| HTTP status | Code                       | When the error occurs                                        |
+| ----------- | -------------------------- | ------------------------------------------------------------ |
 | 400         | `VALIDATION_ERROR`         | Missing, invalid, or unknown request fields; malformed JSON. |
-| 409         | `LOCKER_IDENTIFIER_EXISTS` | A locker already has this identifier. |
-| 500         | `INTERNAL_SERVER_ERROR`    | An unexpected server error occurs. |
+| 409         | `LOCKER_IDENTIFIER_EXISTS` | A locker already has this identifier.                        |
+| 500         | `INTERNAL_SERVER_ERROR`    | An unexpected server error occurs.                           |
 
 ## List lockers
 
@@ -81,10 +81,10 @@
 
 ### Possible errors
 
-| HTTP status | Code                    | When the error occurs |
-| ----------- | ----------------------- | --------------------- |
+| HTTP status | Code                    | When the error occurs                    |
+| ----------- | ----------------------- | ---------------------------------------- |
 | 400         | `VALIDATION_ERROR`      | A query parameter is invalid or unknown. |
-| 500         | `INTERNAL_SERVER_ERROR` | An unexpected server error occurs. |
+| 500         | `INTERNAL_SERVER_ERROR` | An unexpected server error occurs.       |
 
 ## List locker events
 
@@ -124,11 +124,11 @@
 
 ### Possible errors
 
-| HTTP status | Code                    | When the error occurs |
-| ----------- | ----------------------- | --------------------- |
+| HTTP status | Code                    | When the error occurs                          |
+| ----------- | ----------------------- | ---------------------------------------------- |
 | 400         | `VALIDATION_ERROR`      | The locker ID or a query parameter is invalid. |
-| 404         | `LOCKER_NOT_FOUND`      | The locker does not exist. |
-| 500         | `INTERNAL_SERVER_ERROR` | An unexpected server error occurs. |
+| 404         | `LOCKER_NOT_FOUND`      | The locker does not exist.                     |
+| 500         | `INTERNAL_SERVER_ERROR` | An unexpected server error occurs.             |
 
 ## Store a package
 
@@ -160,12 +160,12 @@
 
 ### Possible errors
 
-| HTTP status | Code                            | When the error occurs |
-| ----------- | ------------------------------- | --------------------- |
+| HTTP status | Code                            | When the error occurs                                        |
+| ----------- | ------------------------------- | ------------------------------------------------------------ |
 | 400         | `VALIDATION_ERROR`              | Missing, invalid, or unknown request fields; malformed JSON. |
-| 404         | `NO_AVAILABLE_LOCKER`           | No suitable available locker exists. |
-| 500         | `PICKUP_CODE_GENERATION_FAILED` | A unique pickup code cannot be generated after retries. |
-| 500         | `INTERNAL_SERVER_ERROR`         | An unexpected server error occurs. |
+| 404         | `NO_AVAILABLE_LOCKER`           | No suitable available locker exists.                         |
+| 500         | `PICKUP_CODE_GENERATION_FAILED` | A unique pickup code cannot be generated after retries.      |
+| 500         | `INTERNAL_SERVER_ERROR`         | An unexpected server error occurs.                           |
 
 ## Retrieve a package
 
@@ -178,10 +178,10 @@
 }
 ```
 
-| Body field         | Required | Description                                                                                                       |
-| ------------------ | -------- | ----------------------------------------------------------------------------------------------------------------- |
-| `lockerIdentifier` | Yes      | Locker's user facing `identifier` (such as `A1`), 1–128 characters after trimming, not `id`.                      |
-| `pickupCode`       | Yes      | Exactly six digits as a **string**, including any leading zeros.                                                  |
+| Body field         | Required | Description                                                                                         |
+| ------------------ | -------- | --------------------------------------------------------------------------------------------------- |
+| `lockerIdentifier` | Yes      | Locker's user facing `identifier` (such as `A1`), 1–128 characters after trimming, not `id`.        |
+| `pickupCode`       | Yes      | Exactly six digits as a **string**, including any leading zeros.                                    |
 | `confirmCharges`   | No       | Omitted or `false` previews a positive charge; `true` accepts the charge and retrieves the package. |
 
 For a matching occupied locker, both outcomes return `200 OK` with the same fields:
@@ -194,7 +194,6 @@ flowchart LR
     D -- Yes --> C
     D -- No --> E[Return Charges: Not Retrieve Yet]
 ```
-
 
 Positive-charge preview (`confirmCharges` omitted):
 
@@ -222,11 +221,11 @@ Retrieved
 
 ### Possible errors
 
-| HTTP status | Code                    | When the error occurs |
-| ----------- | ----------------------- | --------------------- |
-| 400         | `VALIDATION_ERROR`      | Missing, invalid, or unknown request fields; malformed JSON. |
+| HTTP status | Code                    | When the error occurs                                                 |
+| ----------- | ----------------------- | --------------------------------------------------------------------- |
+| 400         | `VALIDATION_ERROR`      | Missing, invalid, or unknown request fields; malformed JSON.          |
 | 404         | `PACKAGE_NOT_FOUND`     | No occupied assignment matches the locker identifier and pickup code. |
-| 500         | `INTERNAL_SERVER_ERROR` | An unexpected server or stored-data error occurs. |
+| 500         | `INTERNAL_SERVER_ERROR` | An unexpected server or stored-data error occurs.                     |
 
 ## Error responses
 

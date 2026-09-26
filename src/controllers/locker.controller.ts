@@ -1,4 +1,4 @@
-import type { RequestHandler } from "express";
+import type { RequestHandler } from 'express';
 import type {
   CreateLockerBody,
   ListLockerEventsParams,
@@ -6,15 +6,15 @@ import type {
   ListLockersQuery,
   RetrievePackageBody,
   StorePackageBody,
-} from "../schemas/locker.schema.ts";
-import type { LockerService } from "../services/locker.service.ts";
+} from '../schemas/locker.schema.ts';
+import type { LockerService } from '../services/locker.service.ts';
 import type {
   CreateLockerResponse,
   ListLockerEventsResponse,
   ListLockersResponse,
   RetrievePackageResponse,
   StorePackageResponse,
-} from "../types/locker-response.ts";
+} from '../types/locker-response.ts';
 
 export class LockerController {
   private readonly service: LockerService;
@@ -23,13 +23,17 @@ export class LockerController {
     this.service = service;
   }
 
-  create: RequestHandler<{}, CreateLockerResponse, CreateLockerBody> = async (req, res) => {
+  create: RequestHandler<{}, CreateLockerResponse, CreateLockerBody> = async (
+    req,
+    res,
+  ) => {
     res.status(201).json(await this.service.createLocker(req.body));
   };
 
-  list: RequestHandler<{}, ListLockersResponse, unknown, ListLockersQuery> = async (req, res) => {
-    res.json(await this.service.listLockers(req.query));
-  };
+  list: RequestHandler<{}, ListLockersResponse, unknown, ListLockersQuery> =
+    async (req, res) => {
+      res.json(await this.service.listLockers(req.query));
+    };
 
   listEvents: RequestHandler<
     ListLockerEventsParams,
@@ -37,14 +41,20 @@ export class LockerController {
     unknown,
     ListLockerEventsQuery
   > = async (req, res) => {
-    res.json(await this.service.listLockerEvents({ ...req.params, ...req.query }));
+    res.json(
+      await this.service.listLockerEvents({ ...req.params, ...req.query }),
+    );
   };
 
-  store: RequestHandler<{}, StorePackageResponse, StorePackageBody> = async (req, res) => {
+  store: RequestHandler<{}, StorePackageResponse, StorePackageBody> = async (
+    req,
+    res,
+  ) => {
     res.json(await this.service.storePackage(req.body));
   };
 
-  retrieve: RequestHandler<{}, RetrievePackageResponse, RetrievePackageBody> = async (req, res) => {
-    res.json(await this.service.retrievePackage(req.body));
-  };
+  retrieve: RequestHandler<{}, RetrievePackageResponse, RetrievePackageBody> =
+    async (req, res) => {
+      res.json(await this.service.retrievePackage(req.body));
+    };
 }

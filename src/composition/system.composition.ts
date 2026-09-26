@@ -1,4 +1,4 @@
-import { createHealthRouter } from "../routes/health.route.ts";
+import { createHealthRouter } from '../routes/health.route.ts';
 
 export const composeSystem = () => {
   return {

@@ -4,15 +4,15 @@ import {
   type CreationOptional,
   type InferAttributes,
   type InferCreationAttributes,
-} from "sequelize";
-import { sequelize } from "../configs/database.ts";
+} from 'sequelize';
+import { sequelize } from '../configs/database.ts';
 import {
   LOCKER_EVENT_TYPES,
   LOCKER_STATUSES,
   type LockerEventType,
   type LockerStatus,
-} from "../types/locker.ts";
-import { Locker } from "./locker.model.ts";
+} from '../types/locker.ts';
+import { Locker } from './locker.model.ts';
 
 export class LockerEvent extends Model<
   InferAttributes<LockerEvent>,
@@ -37,38 +37,38 @@ LockerEvent.init(
     lockerId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      field: "locker_id",
-      references: { model: Locker, key: "id" },
+      field: 'locker_id',
+      references: { model: Locker, key: 'id' },
     },
     eventType: {
       type: DataTypes.ENUM(...LOCKER_EVENT_TYPES),
       allowNull: false,
-      field: "event_type",
+      field: 'event_type',
     },
     lockerStatus: {
       type: DataTypes.ENUM(...LOCKER_STATUSES),
       allowNull: false,
-      field: "locker_status",
+      field: 'locker_status',
     },
     packageIdentifier: {
       type: new DataTypes.STRING(128),
       allowNull: true,
-      field: "package_identifier",
+      field: 'package_identifier',
     },
     chargesInCents: {
       type: DataTypes.INTEGER.UNSIGNED,
       allowNull: true,
-      field: "charges_in_cents",
+      field: 'charges_in_cents',
     },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
-      field: "created_at",
+      field: 'created_at',
     },
   },
   {
     sequelize,
-    tableName: "locker_events",
+    tableName: 'locker_events',
     timestamps: true,
     updatedAt: false,
   },
